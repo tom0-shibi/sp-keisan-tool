@@ -6,7 +6,7 @@ async function loadCSV() {
   const text = await response.text();
   const rows = text.trim().split("\n").map(r => r.split("\t"));
 
-  const headers = rows.shift();
+  const headers = rows.shift(); // ヘッダー行
   skills = rows.map(row => {
     const obj = {};
     headers.forEach((h, i) => obj[h] = row[i]);
@@ -25,11 +25,14 @@ function addRow() {
   const tdSkill = document.createElement("td");
   const container = document.createElement("div");
   container.classList.add("skill-name");
+
   const inputSkill = document.createElement("input");
   inputSkill.setAttribute("list", "skillList");
+
   const datalist = document.createElement("datalist");
   datalist.id = "skillList";
   datalist.innerHTML = skills.map(s => `<option value="${s.skill}">`).join("");
+
   inputSkill.addEventListener("change", () => {
     updateRow(tr, inputSkill.value);
     if (tbody.lastChild === tr) addRow();
@@ -38,7 +41,14 @@ function addRow() {
   const btnDelete = document.createElement("button");
   btnDelete.innerHTML = "🗑️";
   btnDelete.classList.add("delete-btn");
-  btnDelete.addEventListener("click", () => tr.remove());
+  btnDelete.addEventListener("click", () => {
+    const tbody = tr.parentElement;
+    if (tbody.rows.length > 1) {
+      tr.remove();
+      updateTotalSP();
+      checkDeleteButtons();
+    }
+  });
 
   container.appendChild(inputSkill);
   container.appendChild(btnDelete);
@@ -76,6 +86,21 @@ function addRow() {
   tr.appendChild(tdExplain);
 
   tbody.appendChild(tr);
+  checkDeleteButtons();
+}
+
+// 削除ボタン表示制御
+function checkDeleteButtons() {
+  const tbody = document.querySelector("#skillTable tbody");
+  const rows = Array.from(tbody.rows);
+  rows.forEach((tr, index) => {
+    const btn = tr.querySelector(".delete-btn");
+    if (rows.length === 1) {
+      btn.style.display = "none";
+    } else {
+      btn.style.display = "inline";
+    }
+  });
 }
 
 // 行更新
@@ -89,9 +114,9 @@ function updateRow(tr, skillName) {
 
   let sp = parseInt(skill.sp, 10) || 0;
 
-  // ヒント補正
-  const hintRate = [1.0, 0.9, 0.8, 0.7, 0.65, 0.6];
-  sp = Math.floor(sp * hintRate[hintLevel]);
+  // ヒント補正 (0:デフォルト, 1:10%, 2:20%, 3:30%, 4:35%,5:40%割引)
+  const hintRates = [1.0, 0.9, 0.8, 0.7, 0.65, 0.6];
+  sp = Math.floor(sp * hintRates[hintLevel]);
 
   // 切れ者 -10%
   if (isKire) sp = Math.floor(sp * 0.9);
@@ -117,6 +142,14 @@ function updateTotalSP() {
 // ハンバーガーメニュー開閉
 document.getElementById("menuButton").addEventListener("click", () => {
   document.getElementById("menuList").classList.toggle("hidden");
+});
+
+// ヘッダー切れ者チェック時に全行再計算
+document.getElementById("kiremonoHeader").addEventListener("change", () => {
+  document.querySelectorAll("#skillTable tbody tr").forEach(tr => {
+    const skillName = tr.querySelector(".skill-name input").value;
+    if (skillName) updateRow(tr, skillName);
+  });
 });
 
 // 初期化
