@@ -2,16 +2,23 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>スキル管理</title>
+  <title>SP計算ツール</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header>
-    <h1>スキル管理</h1>
+    <h1>SP計算ツール</h1>
+    <nav class="menu">
+      <button id="menuButton">☰</button>
+      <ul id="menuList" class="hidden">
+        <li><button id="saveBtn">保存</button></li>
+        <li><button id="loadBtn">読込</button></li>
+        <li><button id="shareBtn">画面を共有</button></li>
+      </ul>
+    </nav>
   </header>
 
   <main>
-    <button id="loadCsv">CSV読込</button>
     <table id="skillTable">
       <thead>
         <tr>
@@ -25,7 +32,7 @@
         </tr>
       </thead>
       <tbody>
-        <!-- 行はJSで生成 -->
+        <!-- 行はJSで追加 -->
       </tbody>
     </table>
   </main>
