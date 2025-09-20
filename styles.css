@@ -1,80 +1,62 @@
 body {
   font-family: sans-serif;
-  margin: 0;
+  margin: 20px;
 }
 
 header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 20px;
-  background: #f5f5f5;
-  border-bottom: 1px solid #ccc;
-}
-
-header h1 {
-  font-size: 18px;
-  margin: 0;
-}
-
-/* ハンバーガーメニュー */
-.menu {
-  position: relative;
-  display: inline-block;
-}
-.menu-btn {
-  font-size: 24px;
-  cursor: pointer;
-  background: none;
-  border: none;
-}
-.menu-content {
-  display: none;
-  position: absolute;
-  right: 0;
-  background: #fff;
-  color: #333;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  min-width: 160px;
-  z-index: 1000;
-}
-.menu-content a {
-  display: block;
-  padding: 10px;
-  text-decoration: none;
-  color: #333;
-}
-.menu-content a:hover {
-  background: #eee;
-}
-.menu.show .menu-content {
-  display: block;
-}
-
-.summary {
-  padding: 10px 20px;
-  border-bottom: 1px solid #ccc;
-  background: #fafafa;
+  margin-bottom: 20px;
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
-  table-layout: fixed;
+  margin-top: 10px;
 }
+
 th, td {
   border: 1px solid #ccc;
-  padding: 5px;
+  padding: 6px;
   text-align: left;
 }
+
 th {
   background: #f0f0f0;
 }
 
-/* 各カラム幅 */
-th:nth-child(1), td:nth-child(1) { width: 300px; }
-th:nth-child(2), td:nth-child(2) { width: 80px; }
-th:nth-child(3), td:nth-child(3) { width: 80px; }
-th:nth-child(4), td:nth-child(4) { width: 200px; }
-th:nth-child(5), td:nth-child(5) { width: 500px; }
+select, input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.skill-name {
+  width: 300px;
+}
+
+.sp {
+  width: 80px;
+  text-align: right;
+}
+
+.hint-level {
+  width: 80px;
+}
+
+.kiremono {
+  width: 80px;
+}
+
+.category {
+  width: 200px;
+}
+
+.explain {
+  width: 500px;
+}
+
+.delete-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: red;
+  font-size: 18px;
+}
