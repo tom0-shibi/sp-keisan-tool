@@ -1,5 +1,4 @@
 let skills = [];
-let selectedSkills = [];
 
 // CSV読み込み
 Papa.parse("skills.csv", {
@@ -7,66 +6,78 @@ Papa.parse("skills.csv", {
   header: true,
   complete: (results) => {
     skills = results.data;
-    renderTable();
+    addNewRow(); // 初期状態で空行を1つ
   }
 });
 
-// テーブル描画
-function renderTable() {
+// 行追加
+function addNewRow() {
   const tbody = document.getElementById("skillTable");
-  tbody.innerHTML = "";
+  const row = document.createElement("tr");
 
-  skills.forEach((skill, index) => {
-    const row = document.createElement("tr");
-
-    // スキル名（プルダウン）
-    const skillCell = document.createElement("td");
-    const select = document.createElement("select");
-    skills.forEach(s => {
-      const opt = document.createElement("option");
-      opt.value = s.id;
-      opt.textContent = s["スキル名"];
-      select.appendChild(opt);
-    });
-    select.value = skill.id;
-    select.onchange = () => updateSP();
-    skillCell.appendChild(select);
-    row.appendChild(skillCell);
-
-    // SP
-    const spCell = document.createElement("td");
-    spCell.textContent = skill.SP;
-    spCell.className = "text-center";
-    row.appendChild(spCell);
-
-    // ヒントLv
-    const hintCell = document.createElement("td");
-    const hintSelect = document.createElement("select");
-    for (let i = 0; i <= 5; i++) {
-      const opt = document.createElement("option");
-      opt.value = i;
-      opt.textContent = i;
-      hintSelect.appendChild(opt);
+  // スキル名（入力＋サジェスト）
+  const skillCell = document.createElement("td");
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "border p-1 w-full";
+  input.setAttribute("list", "skillList");
+  input.onchange = () => {
+    const skill = skills.find(s => s["スキル名"] === input.value);
+    if (skill) {
+      row.cells[1].textContent = skill.SP;
+      row.cells[3].textContent = skill["効果タグ"];
+      row.cells[4].textContent = skill["説明"];
+      updateSP();
+      ensureLastRow();
     }
-    hintSelect.onchange = () => updateSP();
-    hintCell.appendChild(hintSelect);
-    row.appendChild(hintCell);
+  };
+  skillCell.appendChild(input);
+  row.appendChild(skillCell);
 
-    // 分類
-    const typeCell = document.createElement("td");
-    typeCell.textContent = skill["効果タグ"];
-    row.appendChild(typeCell);
+  // SP
+  const spCell = document.createElement("td");
+  spCell.className = "border text-center";
+  row.appendChild(spCell);
 
-    // 説明
-    const descCell = document.createElement("td");
-    descCell.textContent = skill["説明"];
-    row.appendChild(descCell);
+  // ヒントLv
+  const hintCell = document.createElement("td");
+  const hintSelect = document.createElement("select");
+  for (let i = 0; i <= 5; i++) {
+    const opt = document.createElement("option");
+    opt.value = i;
+    opt.textContent = i;
+    hintSelect.appendChild(opt);
+  }
+  hintSelect.onchange = () => updateSP();
+  hintCell.appendChild(hintSelect);
+  row.appendChild(hintCell);
 
-    tbody.appendChild(row);
-  });
+  // 分類
+  const typeCell = document.createElement("td");
+  typeCell.className = "border";
+  row.appendChild(typeCell);
+
+  // 説明
+  const descCell = document.createElement("td");
+  descCell.className = "border";
+  row.appendChild(descCell);
+
+  tbody.appendChild(row);
 }
 
-// SP計算更新
+// 常に最後に空行が1つ残るようにする
+function ensureLastRow() {
+  const tbody = document.getElementById("skillTable");
+  const lastRow = tbody.lastElementChild;
+  if (lastRow) {
+    const input = lastRow.cells[0].querySelector("input");
+    if (input && input.value) {
+      addNewRow();
+    }
+  }
+}
+
+// SP計算
 function updateSP() {
   let total = 0;
   const cut = document.getElementById("cutSkill").checked;
