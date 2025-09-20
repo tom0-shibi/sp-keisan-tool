@@ -7,8 +7,6 @@
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- PapaParse for CSV -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 </head>
 <body class="bg-gray-50 text-gray-900">
@@ -19,7 +17,7 @@
     <!-- ハンバーガーメニュー -->
     <div class="relative">
       <button id="menuButton" class="p-2">☰</button>
-      <div id="menuDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white border rounded shadow-lg">
+      <div id="menuDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white border rounded shadow-lg z-50">
         <button class="block w-full text-left px-4 py-2 hover:bg-gray-200" onclick="saveSlot()">保存</button>
         <button class="block w-full text-left px-4 py-2 hover:bg-gray-200" onclick="loadSlot()">読込</button>
         <button class="block w-full text-left px-4 py-2 hover:bg-gray-200" onclick="shareScreen()">画面を共有</button>
