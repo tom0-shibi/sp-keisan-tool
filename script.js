@@ -6,12 +6,14 @@ async function loadCSV() {
   const text = await response.text();
   const rows = text.trim().split("\n").map(r => r.split("\t"));
 
-  const headers = rows.shift(); // ヘッダー行
+  const headers = rows.shift().map(h => h.trim()); // ヘッダーの前後空白を除去
   skills = rows.map(row => {
     const obj = {};
-    headers.forEach((h, i) => obj[h] = row[i]);
+    headers.forEach((h, i) => obj[h] = row[i] ? row[i].trim() : ""); // 空白も除去
     return obj;
   });
+
+  console.log(skills); // デバッグ用: 正しくskillプロパティが入っているか確認
 
   addRow(); // 最初の1行を追加
 }
