@@ -1,104 +1,109 @@
-const tableBody = document.getElementById("skills-body");
-const totalSpEl = document.getElementById("total-sp");
-const kiremonoCheckbox = document.getElementById("kiremono");
-
-let skillsData = [];
-
-// ヒントレベル割引率
-const hintDiscounts = [0, 0.1, 0.2, 0.3, 0.35, 0.4];
+let skills = [];
 
 // CSV読み込み
-async function loadSkills() {
-  const res = await fetch("skills.csv");
-  const text = await res.text();
-  const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
-  skillsData = parsed.data;
-  addEmptyRow();
+async function loadCSV() {
+  const response = await fetch("skills.csv");
+  const text = await response.text();
+  const rows = text.trim().split("\n").map(r => r.split("\t"));
+
+  const headers = rows.shift(); // ヘッダー除去
+  skills = rows.map(row => {
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = row[i]);
+    return obj;
+  });
+
+  addRow(); // 最初の1行を追加
 }
 
-// 空行追加
-function addEmptyRow() {
-  const row = document.createElement("tr");
+// 行追加
+function addRow() {
+  const tbody = document.querySelector("#skillTable tbody");
+  const tr = document.createElement("tr");
 
-  // スキル名
-  const nameCell = document.createElement("td");
-  const input = document.createElement("input");
-  input.type = "text";
-  input.placeholder = "スキル名を入力";
-  input.addEventListener("input", (e) => {
-    const keyword = e.target.value.trim();
-    const found = skillsData.find(s => s.skill.includes(keyword));
-
-    if (found) {
-      row.dataset.baseSp = found.sp;
-      row.cells[1].textContent = found.sp;
-      row.cells[2].textContent = "0"; // 初期ヒントLv
-      row.cells[3].textContent = found.tags || found.category;
-      row.cells[4].textContent = found.explain;
-      updateTotalSp();
-    }
-
-    if (row.nextSibling === null && keyword !== "") {
-      addEmptyRow();
-    }
-  });
-  nameCell.appendChild(input);
-  row.appendChild(nameCell);
+  // スキル名（プルダウン + 入力補完）
+  const tdSkill = document.createElement("td");
+  const selectSkill = document.createElement("select");
+  selectSkill.classList.add("skill-name");
+  selectSkill.innerHTML = `<option value="">選択してください</option>` + 
+    skills.map(s => `<option value="${s.skill}">${s.skill}</option>`).join("");
+  selectSkill.addEventListener("change", () => updateRow(tr, selectSkill.value));
+  tdSkill.appendChild(selectSkill);
+  tr.appendChild(tdSkill);
 
   // SP
-  row.appendChild(document.createElement("td"));
+  const tdSp = document.createElement("td");
+  tdSp.classList.add("sp");
+  tr.appendChild(tdSp);
 
-  // ヒントLv
-  const hintCell = document.createElement("td");
-  const hintSelect = document.createElement("select");
-  for (let i = 0; i <= 5; i++) {
+  // ヒントLv（プルダウン）
+  const tdHint = document.createElement("td");
+  const selectHint = document.createElement("select");
+  selectHint.classList.add("hint-level");
+  for (let i = 1; i <= 5; i++) {
     const opt = document.createElement("option");
     opt.value = i;
     opt.textContent = i;
-    hintSelect.appendChild(opt);
+    selectHint.appendChild(opt);
   }
-  hintSelect.addEventListener("change", () => {
-    updateRowSp(row);
-    updateTotalSp();
-  });
-  hintCell.appendChild(hintSelect);
-  row.appendChild(hintCell);
+  selectHint.addEventListener("change", () => updateRow(tr, selectSkill.value));
+  tdHint.appendChild(selectHint);
+  tr.appendChild(tdHint);
+
+  // 切れ者（チェックボックス）
+  const tdKire = document.createElement("td");
+  const chkKire = document.createElement("input");
+  chkKire.type = "checkbox";
+  chkKire.classList.add("kiremono");
+  chkKire.addEventListener("change", () => updateRow(tr, selectSkill.value));
+  tdKire.appendChild(chkKire);
+  tr.appendChild(tdKire);
 
   // 分類
-  row.appendChild(document.createElement("td"));
+  const tdCategory = document.createElement("td");
+  tdCategory.classList.add("category");
+  tr.appendChild(tdCategory);
+
   // 説明
-  row.appendChild(document.createElement("td"));
+  const tdExplain = document.createElement("td");
+  tdExplain.classList.add("explain");
+  tr.appendChild(tdExplain);
 
-  tableBody.appendChild(row);
+  // 削除ボタン
+  const tdDelete = document.createElement("td");
+  const btnDelete = document.createElement("button");
+  btnDelete.innerHTML = "🗑️";
+  btnDelete.classList.add("delete-btn");
+  btnDelete.addEventListener("click", () => tr.remove());
+  tdDelete.appendChild(btnDelete);
+  tr.appendChild(tdDelete);
+
+  tbody.appendChild(tr);
 }
 
-// 行ごとのSP更新
-function updateRowSp(row) {
-  const baseSp = parseInt(row.dataset.baseSp || 0);
-  const hintLv = parseInt(row.querySelector("select")?.value || 0);
-  let sp = baseSp - Math.floor(baseSp * hintDiscounts[hintLv]);
-  if (kiremonoCheckbox.checked) {
-    sp = Math.floor(sp * 0.9);
-  }
-  row.cells[1].textContent = sp > 0 ? sp : "";
-  return sp;
+// 行の更新
+function updateRow(tr, skillName) {
+  const skill = skills.find(s => s.skill === skillName);
+  if (!skill) return;
+
+  const spCell = tr.querySelector(".sp");
+  const hintLevel = tr.querySelector(".hint-level").value;
+  const isKire = tr.querySelector(".kiremono").checked;
+
+  let sp = parseInt(skill.sp, 10) || 0;
+
+  // ヒントレベル補正（例: Lv1=100%, Lv5=50%）
+  const hintRate = [1.0, 0.9, 0.8, 0.7, 0.5];
+  sp = Math.floor(sp * hintRate[hintLevel - 1]);
+
+  // 切れ者補正（さらに半分）
+  if (isKire) sp = Math.floor(sp * 0.5);
+
+  spCell.textContent = sp;
+
+  tr.querySelector(".category").textContent = skill.category || "";
+  tr.querySelector(".explain").textContent = skill.explain || "";
 }
 
-// 総SP更新
-function updateTotalSp() {
-  let total = 0;
-  [...tableBody.rows].forEach(row => {
-    total += updateRowSp(row);
-  });
-  totalSpEl.textContent = total;
-}
-
-// メニュー開閉
-document.querySelector(".menu-btn").addEventListener("click", () => {
-  document.querySelector(".menu").classList.toggle("show");
-});
-
-// 切れ者チェック時の再計算
-kiremonoCheckbox.addEventListener("change", updateTotalSp);
-
-loadSkills();
+// 初期化
+document.getElementById("loadCsv").addEventListener("click", loadCSV);
