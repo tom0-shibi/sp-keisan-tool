@@ -13,12 +13,18 @@ h1 {
   margin: 0;
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
 .menu {
   position: relative;
 }
 
 #menuButton {
-  font-size: 20px;
+  font-size: 28px; /* 大きめに調整 */
   background: none;
   border: none;
   cursor: pointer;
@@ -26,7 +32,7 @@ h1 {
 
 #menuList {
   position: absolute;
-  top: 30px;
+  top: 35px;
   right: 0;
   background: #fff;
   border: 1px solid #ccc;
@@ -48,7 +54,7 @@ h1 {
   background: none;
   border: none;
   cursor: pointer;
-  color: #000; /* 黒文字 */
+  color: #000;
 }
 
 #menuList button:hover {
@@ -75,12 +81,30 @@ th {
   background: #f0f0f0;
 }
 
-.skill-name { width: 300px; }
-.sp { width: 80px; text-align: right; }
-.hint-level { width: 80px; }
-.kiremono { width: 80px; }
-.category { width: 200px; }
-.explain { width: 500px; }
+.skill-name {
+  width: 300px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sp {
+  width: 80px;
+  text-align: right;
+}
+
+.hint-level {
+  width: 80px;
+}
+
+.category {
+  width: 200px;
+}
+
+.explain {
+  width: 500px;
+}
+
 .delete-btn {
   background: none;
   border: none;
