@@ -51,4 +51,27 @@
 
   <script src="script.js"></script>
 </body>
+<datalist id="skillList"></datalist>
+<script>
+  // skills.csv を読み込んだ後に datalist を生成
+  function updateSkillList() {
+    const list = document.getElementById("skillList");
+    list.innerHTML = "";
+    skills.forEach(skill => {
+      const opt = document.createElement("option");
+      opt.value = skill["スキル名"];
+      list.appendChild(opt);
+    });
+  }
+  // CSVロード完了後に呼び出す
+  Papa.parse("skills.csv", {
+    download: true,
+    header: true,
+    complete: (results) => {
+      skills = results.data;
+      updateSkillList();
+      addNewRow();
+    }
+  });
+</script>
 </html>
