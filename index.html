@@ -2,40 +2,31 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>ウマ娘スキル取得計算ツール（仮）</title>
-  <link rel="stylesheet" href="styles.css">
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <title>スキル管理</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header>
-    <h1>ウマ娘スキル取得計算ツール（仮）</h1>
-    <div class="menu">
-      <button class="menu-btn">☰</button>
-      <div class="menu-content">
-        <a href="#">保存</a>
-        <a href="#">読込</a>
-        <a href="#">画面を共有</a>
-      </div>
-    </div>
+    <h1>スキル管理</h1>
   </header>
 
-  <section class="summary">
-    <label><input type="checkbox" id="kiremono"> 切れ者</label>
-    <span>総SP: <span id="total-sp">0</span></span>
-  </section>
-
   <main>
-    <table id="skills-table">
+    <button id="loadCsv">CSV読込</button>
+    <table id="skillTable">
       <thead>
         <tr>
           <th>スキル名</th>
           <th>SP</th>
           <th>ヒントLv</th>
+          <th>切れ者</th>
           <th>分類</th>
           <th>説明</th>
+          <th>削除</th>
         </tr>
       </thead>
-      <tbody id="skills-body"></tbody>
+      <tbody>
+        <!-- 行はJSで生成 -->
+      </tbody>
     </table>
   </main>
 
