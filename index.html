@@ -3,75 +3,42 @@
 <head>
   <meta charset="UTF-8">
   <title>ウマ娘スキル取得計算ツール（仮）</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 </head>
-<body class="bg-gray-50 text-gray-900">
-  <!-- ヘッダー -->
-  <header class="flex justify-between items-center p-4 bg-blue-600 text-white">
-    <h1 class="text-xl font-bold">ウマ娘スキル取得計算ツール（仮）</h1>
-
-    <!-- ハンバーガーメニュー -->
-    <div class="relative">
-      <button id="menuButton" class="p-2">☰</button>
-      <div id="menuDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white border rounded shadow-lg z-50">
-        <button class="block w-full text-left px-4 py-2 hover:bg-gray-200" onclick="saveSlot()">保存</button>
-        <button class="block w-full text-left px-4 py-2 hover:bg-gray-200" onclick="loadSlot()">読込</button>
-        <button class="block w-full text-left px-4 py-2 hover:bg-gray-200" onclick="shareScreen()">画面を共有</button>
+<body>
+  <header>
+    <h1>ウマ娘スキル取得計算ツール（仮）</h1>
+    <div class="menu">
+      <button class="menu-btn">☰</button>
+      <div class="menu-content">
+        <a href="#">保存</a>
+        <a href="#">読込</a>
+        <a href="#">画面を共有</a>
       </div>
     </div>
   </header>
 
-  <!-- 集計部分 -->
-  <section class="p-4 flex items-center gap-4">
-    <div class="text-lg">総SP: <span id="totalSP">0</span></div>
-    <label class="flex items-center gap-2">
-      <input type="checkbox" id="cutSkill"> 切れ者（-10%）
-    </label>
+  <section class="summary">
+    <label><input type="checkbox" id="kiremono"> 切れ者</label>
+    <span>総SP: <span id="total-sp">0</span></span>
   </section>
 
-  <!-- スキル一覧 -->
-  <main class="p-4">
-    <table class="w-full border-collapse border text-sm bg-white">
-      <thead class="bg-gray-200">
+  <main>
+    <table id="skills-table">
+      <thead>
         <tr>
-          <th class="border px-2 py-1">スキル名</th>
-          <th class="border px-2 py-1">SP</th>
-          <th class="border px-2 py-1">ヒントLv</th>
-          <th class="border px-2 py-1">分類</th>
-          <th class="border px-2 py-1">説明</th>
+          <th>スキル名</th>
+          <th>SP</th>
+          <th>ヒントLv</th>
+          <th>分類</th>
+          <th>説明</th>
         </tr>
       </thead>
-      <tbody id="skillTable"></tbody>
+      <tbody id="skills-body"></tbody>
     </table>
   </main>
 
   <script src="script.js"></script>
 </body>
-<datalist id="skillList"></datalist>
-<script>
-  // skills.csv を読み込んだ後に datalist を生成
-  function updateSkillList() {
-    const list = document.getElementById("skillList");
-    list.innerHTML = "";
-    skills.forEach(skill => {
-      const opt = document.createElement("option");
-      opt.value = skill["スキル名"];
-      list.appendChild(opt);
-    });
-  }
-  // CSVロード完了後に呼び出す
-  Papa.parse("skills.csv", {
-    download: true,
-    header: true,
-    complete: (results) => {
-      skills = results.data;
-      updateSkillList();
-      addNewRow();
-    }
-  });
-</script>
 </html>
