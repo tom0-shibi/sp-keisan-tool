@@ -6,7 +6,7 @@ async function loadCSV() {
   const text = await response.text();
   const rows = text.trim().split("\n").map(r => r.split("\t"));
 
-  const headers = rows.shift(); // ヘッダー除去
+  const headers = rows.shift();
   skills = rows.map(row => {
     const obj = {};
     headers.forEach((h, i) => obj[h] = row[i]);
@@ -21,14 +21,21 @@ function addRow() {
   const tbody = document.querySelector("#skillTable tbody");
   const tr = document.createElement("tr");
 
-  // スキル名（プルダウン + 入力補完）
+  // スキル名（検索付きプルダウン）
   const tdSkill = document.createElement("td");
-  const selectSkill = document.createElement("select");
-  selectSkill.classList.add("skill-name");
-  selectSkill.innerHTML = `<option value="">選択してください</option>` + 
-    skills.map(s => `<option value="${s.skill}">${s.skill}</option>`).join("");
-  selectSkill.addEventListener("change", () => updateRow(tr, selectSkill.value));
-  tdSkill.appendChild(selectSkill);
+  const inputSkill = document.createElement("input");
+  inputSkill.setAttribute("list", "skillList");
+  inputSkill.classList.add("skill-name");
+  const datalist = document.createElement("datalist");
+  datalist.id = "skillList";
+  datalist.innerHTML = skills.map(s => `<option value="${s.skill}">`).join("");
+  inputSkill.addEventListener("change", () => {
+    updateRow(tr, inputSkill.value);
+    // 入力されたら新しい行を追加（まだ最後の行なら）
+    if (tbody.lastChild === tr) addRow();
+  });
+  tdSkill.appendChild(inputSkill);
+  tdSkill.appendChild(datalist);
   tr.appendChild(tdSkill);
 
   // SP
@@ -40,13 +47,13 @@ function addRow() {
   const tdHint = document.createElement("td");
   const selectHint = document.createElement("select");
   selectHint.classList.add("hint-level");
-  for (let i = 1; i <= 5; i++) {
+  for (let i = 0; i <= 5; i++) {
     const opt = document.createElement("option");
     opt.value = i;
     opt.textContent = i;
     selectHint.appendChild(opt);
   }
-  selectHint.addEventListener("change", () => updateRow(tr, selectSkill.value));
+  selectHint.addEventListener("change", () => updateRow(tr, inputSkill.value));
   tdHint.appendChild(selectHint);
   tr.appendChild(tdHint);
 
@@ -55,7 +62,7 @@ function addRow() {
   const chkKire = document.createElement("input");
   chkKire.type = "checkbox";
   chkKire.classList.add("kiremono");
-  chkKire.addEventListener("change", () => updateRow(tr, selectSkill.value));
+  chkKire.addEventListener("change", () => updateRow(tr, inputSkill.value));
   tdKire.appendChild(chkKire);
   tr.appendChild(tdKire);
 
@@ -81,23 +88,23 @@ function addRow() {
   tbody.appendChild(tr);
 }
 
-// 行の更新
+// 行更新
 function updateRow(tr, skillName) {
   const skill = skills.find(s => s.skill === skillName);
   if (!skill) return;
 
   const spCell = tr.querySelector(".sp");
-  const hintLevel = tr.querySelector(".hint-level").value;
+  const hintLevel = parseInt(tr.querySelector(".hint-level").value, 10);
   const isKire = tr.querySelector(".kiremono").checked;
 
   let sp = parseInt(skill.sp, 10) || 0;
 
-  // ヒントレベル補正（例: Lv1=100%, Lv5=50%）
-  const hintRate = [1.0, 0.9, 0.8, 0.7, 0.5];
-  sp = Math.floor(sp * hintRate[hintLevel - 1]);
+  // ヒント補正
+  const hintRate = [1.0, 0.9, 0.8, 0.7, 0.65, 0.6];
+  sp = Math.floor(sp * hintRate[hintLevel]);
 
-  // 切れ者補正（さらに半分）
-  if (isKire) sp = Math.floor(sp * 0.5);
+  // 切れ者 -10%
+  if (isKire) sp = Math.floor(sp * 0.9);
 
   spCell.textContent = sp;
 
@@ -105,5 +112,10 @@ function updateRow(tr, skillName) {
   tr.querySelector(".explain").textContent = skill.explain || "";
 }
 
+// メニュー開閉
+document.getElementById("menuButton").addEventListener("click", () => {
+  document.getElementById("menuList").classList.toggle("hidden");
+});
+
 // 初期化
-document.getElementById("loadCsv").addEventListener("click", loadCSV);
+window.addEventListener("DOMContentLoaded", loadCSV);
