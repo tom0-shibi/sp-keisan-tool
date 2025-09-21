@@ -1,19 +1,22 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>SP計算ツール</title>
-  <link rel="stylesheet" href="styles.css">
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="styles.css" />
+  <!-- PapaParse for robust CSV parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 </head>
 <body>
   <header>
     <h1>SP計算ツール</h1>
     <div class="header-right">
-      <div>合計SP: <span id="totalSP">0</span></div>
-      <label><input type="checkbox" id="kiremonoHeader">切れ者</label>
+      <div class="total">合計SP: <span id="totalSP">0</span></div>
+      <label class="kire-label"><input type="checkbox" id="kiremonoHeader" /> 切れ者</label>
       <nav class="menu">
-        <button id="menuButton">☰</button>
-        <ul id="menuList" class="hidden">
+        <button id="menuButton" aria-label="メニュー">☰</button>
+        <ul id="menuList" class="hidden" role="menu">
           <li><button id="saveBtn">保存</button></li>
           <li><button id="loadBtn">読込</button></li>
           <li><button id="shareBtn">画面を共有</button></li>
@@ -23,7 +26,7 @@
   </header>
 
   <main>
-    <table id="skillTable">
+    <table id="skillTable" aria-label="スキル一覧">
       <thead>
         <tr>
           <th>スキル名</th>
@@ -34,9 +37,12 @@
         </tr>
       </thead>
       <tbody>
-        <!-- JSで行追加 -->
+        <!-- JSで行を追加 -->
       </tbody>
     </table>
+
+    <!-- datalist はページに1つだけ置く（全行で共有） -->
+    <datalist id="skillList"></datalist>
   </main>
 
   <script src="script.js"></script>
