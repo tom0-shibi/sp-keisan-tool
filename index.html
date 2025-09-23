@@ -5,10 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SP計算ツール</title>
   <link rel="stylesheet" href="styles.css">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
-  <!-- Choices.js -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
 </head>
 <body>
   <div class="header">
@@ -33,25 +30,26 @@
     <table id="skillTable" class="table table-bordered">
       <thead class="table-primary">
         <tr>
-          <th class="t-empty"></th>      <!-- 空欄（−ボタン置き場） -->
-          <th class="t-category">分類</th>
-          <th class="t-skill">スキル名</th>
-          <th class="t-sp">SP</th>
-          <th class="t-hint">ヒントLv</th>
-          <th class="t-tags">効果</th>
-          <th class="t-explain">説明</th>
+          <th class="th-empty"></th>      <!-- 空欄（−ボタン置き場） -->
+          <th class="th-category">分類</th>
+          <th class="th-skill">スキル名</th>
+          <th class="th-sp">SP</th>
+          <th class="th-hint">ヒントLv</th>
+          <th class="th-tags">効果</th>
+          <th class="th-explain">説明</th>
         </tr>
       </thead>
-    <tbody>
-      <!-- JS が行を生成します -->
-    </tbody>
-  </table>
+      <tbody>
+        <!-- JS が行を生成します -->
+      </tbody>
+    </table>
 
-  <!-- 最下部の「行を追加」ボタンは HTML に記載（JS はクリック処理をバインド） -->
-  <div class="mt-2">
-    <button id="addRowButton" class="btn btn-primary btn-sm">＋ 行を追加</button>
+    <!-- 最下部の「行を追加」ボタンは HTML に記載 -->
+    <div class="mt-2">
+      <button id="addRowButton" class="btn btn-primary btn-sm">＋ 行を追加</button>
+    </div>
   </div>
-</div>
+
   <script src="script.js"></script>
 </body>
 </html>

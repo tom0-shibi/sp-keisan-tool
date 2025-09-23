@@ -60,140 +60,34 @@ body {
   background-color: #eee;
 }
 
-.hidden {
-  display: none;
-}
+.hidden { display: none; }
 
-.container {
-  max-width: 1180px;
-}
+.container { max-width: 1180px; }
 
-.t-handle {
-  width: 10px;
-}
-.t-empty {
-  width: 40px;
-}
-.t-category {
-  width: 150px;
-}
-.t-skill {
-  width: 280px;
-}
-.t-sp {
-  width: 80px;
-}
-.t-hint {
-  width: 100px;
-}
-.t-tags {
-  width: 120px;
-}
-.t-explain {
-  width: 440px;
-}
+/* ヘッダーセル幅指定（th） */
+.th-empty { width: 40px; }
+.th-category { width: 150px; }
+.th-skill { width: 280px; }
+.th-sp { width: 80px; }
+.th-hint { width: 100px; }
+.th-tags { width: 160px; }
+.th-explain { width: 420px; }
 
 /* テーブル */
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 16px;
-}
+table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: left; vertical-align: middle; }
 
-th, td {
-  border: 1px solid #ccc;
-  padding: 4px 8px;
-  text-align: left;
-  vertical-align: middle;
-}
+/* td にクラスが付与されている前提 -> 正しいセレクタは td.xxx */
+td.sp, td.hint-level, td.category { text-align: center; vertical-align: middle; }
 
-/* スキル名 + アイコンコンテナ */
-.skill-name-container {
-  display: flex;
-  align-items: center; /* 垂直中央揃え */
-  gap: 8px;            /* セレクトボックスとアイコンの間隔 */
-}
-
-.choices {
-  margin-bottom: 0px !important;
-}
-
-/* Choices.js セレクトボックス */
-.skill-select + .choices {
-  min-width: 200px;    /* 初期横幅を固定 */
-  max-width: 200px;
-  width: 200px;
-}
-
-/* スキル名セレクトボックス */
-td .choices__inner {
-  min-height: 32px !important;
-  min-width: 200px;  /* 横幅固定 */
-  max-width: 200px;
-  display: flex;
-  align-items: center; /* 中央揃え */
-  box-sizing: border-box;
-}
-
-/* + - アイコン */
-.skill-name-container .icon-btn {
-  font-size: 24px;   /* アイコン大きめ */
-  cursor: pointer;
-  user-select: none;
-  line-height: 1;
+/* スキル名 + クリアボタンラップ */
+.skill-name-container, .skill-input-wrapper {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
+  gap: 8px;
 }
 
-td .choices__list--dropdown {
-  max-height: 300px; /* リストの高さ */
-  overflow-y: auto;
-}
-
-/* SP, ヒントLv, 分類 */
-td .sp, td .hint-level, td .category {
-  text-align: center;
-  vertical-align: middle; /* 縦中央揃え */
-}
-
-/* SP 列の位置を安定 */
-td .sp {
-  text-align: center;
-  vertical-align: middle;
-}
-
-/* 説明 */
-td .explain {
-  max-width: 440px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  /* modern clamp (webkit) */
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1; /* ここを 1 にすることで「2行以上になると…」＝結果1行表示+省略 */
-  line-clamp: 1;
-  /* フォールバック: 一部ブラウザで動かない場合は single-line ellipsis */
-  white-space: nowrap;
-  /* 見た目調整 */
-  vertical-align: middle;
-}
-
-td .explain:hover::after {
-  content: attr(data-title);
-  position: absolute;
-  background: #333;
-  color: #fff;
-  padding: 4px 8px;
-  border-radius: 4px;
-  white-space: normal;
-  z-index: 2000;
-  left: 0;
-}
-
-/* スキル入力横のクリアボタン */
+/* clear button */
 .btn-clear-skill {
   min-width: 28px;
   padding: 0 6px;
@@ -203,6 +97,49 @@ td .explain:hover::after {
   background: rgba(0,0,0,0.03);
   border: 1px solid rgba(0,0,0,0.08);
 }
-.btn-clear-skill:hover {
-  background: rgba(0,0,0,0.06);
+.btn-clear-skill:hover { background: rgba(0,0,0,0.06); }
+
+/* 効果（tags）: 幅160px, 最大2行、超過は省略 */
+td.tags {
+  max-width: 160px;
+  padding: 6px 8px;
 }
+.tags-clamp {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-word;
+  /* clamp to 2 lines */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+  /* fallback hard height ~66px if needed */
+  max-height: 66px;
+}
+
+/* 説明（explain）: 幅420px, 最大2行, 超過省略（…）, title に全文） */
+td.explain {
+  max-width: 420px;
+  padding: 6px 8px;
+}
+.explain-clamp {
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2; /* 2行に制限 */
+  line-clamp: 2;
+  white-space: normal;
+  /* fallback height if browser doesn't support line-clamp */
+  max-height: 66px;
+}
+
+/* tr dragging visual (keeps existing drag behavior) */
+tr.dragging { opacity: 0.6; }
+
+/* 追加の小整形（選択肢/choices 無関係） */
+.choices { margin-bottom: 0 !important; }

@@ -1,12 +1,12 @@
 const CSV_PATH = 'skills.csv';
 const CATEGORY_OPTIONS = ['', '継承固有', '緑スキル', '通常スキル', 'シナリオ・特殊'];
 const HINT_PERCENT = [0, 10, 20, 30, 35, 40]; // 各ヒントLvの元の減少%
-const EXPLAIN_TRUNC_LEN = 80;
+const EXPLAIN_TRUNC_LEN = 80; // 今回は CSS clamp に任せるため未使用だが残す
 
 let skills = [];
 let nextRowId = 1;
 
-/* ---------- CSV パーサ（ダブルクオート対応の簡易堅牢版） ---------- */
+/* CSVパーサ（堅牢） */
 function parseCSV(text) {
   const rows = [];
   let cur = '';
@@ -42,7 +42,7 @@ function parseCSV(text) {
   return rows.map(r => r.map(c => c.replace(/^"|"$/g, '').trim()));
 }
 
-/* ---------- CSV 読み込み ---------- */
+/* CSV読み込み */
 async function loadCSV() {
   try {
     const resp = await fetch(CSV_PATH, { cache: 'no-store' });
@@ -64,15 +64,15 @@ async function loadCSV() {
   }
 }
 
-/* ---------- 初期テーブル描画 ---------- */
+/* 初期描画 */
 function renderTableInitial() {
   const tbody = document.querySelector('#skillTable tbody');
   tbody.innerHTML = '';
-  addRow(); // 最低1行
+  addRow();
   updateTotalSP();
 }
 
-/* ---------- 合計SP更新 ---------- */
+/* 合計SP更新 */
 function updateTotalSP() {
   let total = 0;
   document.querySelectorAll('#skillTable tbody tr').forEach(tr => {
@@ -83,7 +83,7 @@ function updateTotalSP() {
   if (el) el.textContent = String(total);
 }
 
-/* ---------- SP計算（切れ者を hint に合算する方式） ---------- */
+/* 計算: 切れ者を hint に合算する方式 */
 function calcSP(baseSP, hintLv, isKire) {
   const hintPct = HINT_PERCENT[hintLv] !== undefined ? HINT_PERCENT[hintLv] : 0;
   const totalPct = hintPct + (isKire ? 10 : 0);
@@ -91,14 +91,14 @@ function calcSP(baseSP, hintLv, isKire) {
   return val >= 0 ? val : 0;
 }
 
-/* ---------- 行追加 ---------- */
+/* 行追加 */
 function addRow(afterTr = null) {
   const tbody = document.querySelector('#skillTable tbody');
   const tr = document.createElement('tr');
   tr.dataset.rowId = String(nextRowId++);
-  tr.setAttribute('draggable', 'true'); // 行全体を draggable（以前のバージョンに戻した前提）
+  tr.setAttribute('draggable', 'true');
 
-  // 1) 削除ボタンセル（空欄として見えるが削除ボタンを配置）
+  // 1) 削除セル（空欄として見えるがボタンあり）
   const tdRemove = document.createElement('td');
   tdRemove.className = 'text-center align-middle';
   const btnRemove = document.createElement('button');
@@ -111,7 +111,7 @@ function addRow(afterTr = null) {
 
   // 2) 分類
   const tdCategory = document.createElement('td');
-  tdCategory.className = 'align-middle';
+  tdCategory.className = 'align-middle category';
   const selectCat = document.createElement('select');
   selectCat.className = 'form-select category-select';
   CATEGORY_OPTIONS.forEach(opt => {
@@ -123,12 +123,11 @@ function addRow(afterTr = null) {
   tdCategory.appendChild(selectCat);
   tr.appendChild(tdCategory);
 
-  // 3) スキル名 (input + datalist + clear button)
+  // 3) スキル名 (input + datalist + clear)
   const tdSkill = document.createElement('td');
-  tdSkill.className = 'align-middle';
+  tdSkill.className = 'align-middle skill';
   const skillWrapper = document.createElement('div');
-  skillWrapper.style.display = 'flex';
-  skillWrapper.style.alignItems = 'center';
+  skillWrapper.className = 'skill-input-wrapper';
   const inputSkill = document.createElement('input');
   inputSkill.type = 'text';
   inputSkill.className = 'form-control skill-input';
@@ -137,13 +136,11 @@ function addRow(afterTr = null) {
   const datalist = document.createElement('datalist');
   datalist.id = datalistId;
   inputSkill.setAttribute('list', datalistId);
-  // clear button
   const btnClear = document.createElement('button');
   btnClear.type = 'button';
   btnClear.className = 'btn btn-sm btn-clear-skill';
   btnClear.title = 'スキル名をクリア';
   btnClear.innerHTML = '✕';
-  btnClear.style.marginLeft = '6px';
   skillWrapper.appendChild(inputSkill);
   skillWrapper.appendChild(btnClear);
   tdSkill.appendChild(skillWrapper);
@@ -182,11 +179,11 @@ function addRow(afterTr = null) {
   tdExplain.textContent = '';
   tr.appendChild(tdExplain);
 
-  // 挿入
+  // insert
   if (afterTr && afterTr.parentNode === tbody) tbody.insertBefore(tr, afterTr.nextSibling);
   else tbody.appendChild(tr);
 
-  /* ---------- イベント / 内部関数 ---------- */
+  /* 内部関数 */
   function refreshDatalist(filterText = '') {
     const cat = selectCat.value || '';
     const q = (filterText || '').trim().toLowerCase();
@@ -204,8 +201,8 @@ function addRow(afterTr = null) {
     const q = (name || '').trim();
     if (!q) {
       tdSp.textContent = '0';
-      tdTags.textContent = '';
-      tdExplain.textContent = '';
+      tdTags.innerHTML = '';
+      tdExplain.innerHTML = '';
       tdExplain.removeAttribute('title');
       updateTotalSP();
       return;
@@ -214,8 +211,8 @@ function addRow(afterTr = null) {
     if (!skill) skill = skills.find(s => (s.skill || '').toLowerCase().includes(q.toLowerCase()));
     if (!skill) {
       tdSp.textContent = '0';
-      tdTags.textContent = '';
-      tdExplain.textContent = '';
+      tdTags.innerHTML = '';
+      tdExplain.innerHTML = '';
       tdExplain.removeAttribute('title');
       updateTotalSP();
       return;
@@ -225,19 +222,33 @@ function addRow(afterTr = null) {
     const isKire = document.getElementById('kiremonoHeader') && document.getElementById('kiremonoHeader').checked;
     const sp = calcSP(base, hintLv, isKire);
     tdSp.textContent = String(sp);
-    tdTags.textContent = (skill.tags || '').replace(/\|/g, '・');
+
+    // tags: '|' -> '・', put inside tags-clamp div
+    const tagsText = (skill.tags || '').replace(/\|/g, '・');
+    tdTags.innerHTML = '';
+    const tagsDiv = document.createElement('div');
+    tagsDiv.className = 'tags-clamp';
+    tagsDiv.textContent = tagsText;
+    if (tagsText) tagsDiv.title = tagsText;
+    tdTags.appendChild(tagsDiv);
+
+    // explain: put full text into div.clamp and set title for tooltip
     const full = String(skill.explain || '');
-    tdExplain.textContent = (full.length > EXPLAIN_TRUNC_LEN) ? full.slice(0, EXPLAIN_TRUNC_LEN) + '…' : full;
-    if (full) tdExplain.setAttribute('title', full);
-    else tdExplain.removeAttribute('title');
+    tdExplain.innerHTML = '';
+    const explainDiv = document.createElement('div');
+    explainDiv.className = 'explain-clamp';
+    explainDiv.textContent = full;
+    if (full) explainDiv.title = full;
+    tdExplain.appendChild(explainDiv);
+
     updateTotalSP();
   }
 
+  /* イベントバインド */
   inputSkill.addEventListener('input', (e) => refreshDatalist(e.target.value));
   inputSkill.addEventListener('change', (e) => applySkillByName(e.target.value));
   inputSkill.addEventListener('blur', (e) => applySkillByName(e.target.value));
 
-  // clear button
   btnClear.addEventListener('click', () => {
     inputSkill.value = '';
     refreshDatalist('');
@@ -266,7 +277,7 @@ function addRow(afterTr = null) {
     updateTotalSP();
   });
 
-  /* ---------- ドラッグ（行全体 draggable、以前のバージョン前提） ---------- */
+  /* ドラッグ（行全体 draggable） */
   tr.addEventListener('dragstart', (e) => {
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', tr.dataset.rowId);
@@ -308,7 +319,7 @@ function addRow(afterTr = null) {
   return tr;
 }
 
-/* ---------- DOMContentLoaded 初期化 ---------- */
+/* 初期化 DOMContentLoaded */
 window.addEventListener('DOMContentLoaded', () => {
   loadCSV();
 
@@ -322,7 +333,7 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 既存ハンバーガー処理やメニューはそのまま
+  // ハンバーガーメニュー
   const menuButton = document.getElementById('menuButton');
   const menuList = document.getElementById('menuList');
   if (menuButton && menuList) {
