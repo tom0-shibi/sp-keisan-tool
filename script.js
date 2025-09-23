@@ -1,249 +1,335 @@
-/* script.js */
-let skills = []; // CSVから読み込むスキル配列
+const CSV_PATH = 'skills.csv';
+const CATEGORY_OPTIONS = ['', '継承固有', '緑スキル', '通常スキル', 'シナリオ・特殊']; // 先頭は未選択
+const HINT_RATES = [1.0, 0.9, 0.8, 0.7, 0.65, 0.6];
+const EXPLAIN_TRUNC_LEN = 80;
 
-// 初期化
-document.addEventListener("DOMContentLoaded", init);
+let skills = [];
+let nextRowId = 1;
 
-function init() {
-  // メニューの安全なセットアップ（存在確認してから）
-  const menuButton = document.getElementById("menuButton");
-  const menuList = document.getElementById("menuList");
-  if (menuButton && menuList) {
-    menuButton.addEventListener("click", () => menuList.classList.toggle("hidden"));
-    // 将来的なメニュー処理用のダミー（何もしない実装）
-    document.getElementById("saveBtn")?.addEventListener("click", () => alert("保存（未実装）"));
-    document.getElementById("loadBtn")?.addEventListener("click", () => alert("読込（未実装）"));
-    document.getElementById("shareBtn")?.addEventListener("click", () => alert("共有（未実装）"));
+/* ---------- 頑健な CSV パーサ ---------- */
+function parseCSV(text) {
+  const rows = [];
+  let cur = '';
+  let row = [];
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
+    if (ch === '"') {
+      if (inQuotes && next === '"') {
+        cur += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === ',' && !inQuotes) {
+      row.push(cur);
+      cur = '';
+    } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
+      // handle CRLF lightly
+      if (ch === '\r' && next === '\n') continue;
+      row.push(cur);
+      rows.push(row);
+      row = [];
+      cur = '';
+    } else {
+      cur += ch;
+    }
   }
-
-  // 切れ者ヘッダーチェック
-  const kire = document.getElementById("kiremonoHeader");
-  if (kire) {
-    kire.addEventListener("change", () => {
-      // 全行を再計算
-      document.querySelectorAll("#skillTable tbody tr").forEach(tr => {
-        const input = tr.querySelector(".skill-name input");
-        updateRow(tr, input?.value || "");
-      });
-    });
+  if (cur !== '' || row.length > 0) {
+    row.push(cur);
+    rows.push(row);
   }
-
-  loadCSV();
+  return rows.map(r => r.map(c => c.replace(/^"|"$/g, '').trim()));
 }
 
-// HTMLエスケープ関数
-function escapeHtml(text) {
-  if (!text) return "";
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
-// CSV読み込み（PapaParse で安全に）
+/* ---------- CSV 読み込み ---------- */
 async function loadCSV() {
   try {
-    const res = await fetch("skills.csv");
-    const text = await res.text();
-
-    // PapaParseでパース。header:true でヘッダをキーにしたオブジェクト配列で取得
-    const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
-    skills = parsed.data.map(row => {
-      // trim 各フィールド
-      const out = {};
-      Object.keys(row).forEach(k => {
-        const key = k.trim();
-        out[key] = typeof row[k] === "string" ? row[k].trim() : row[k];
+    const resp = await fetch(CSV_PATH, { cache: 'no-store' });
+    if (!resp.ok) throw new Error('CSV fetch failed: ' + resp.status);
+    const text = await resp.text();
+    const parsed = parseCSV(text).filter(r => r.length > 0);
+    if (parsed.length === 0) return;
+    const headers = parsed.shift().map(h => h.trim());
+    skills = parsed.map(row => {
+      const obj = {};
+      headers.forEach((h, i) => {
+        obj[h] = row[i] !== undefined ? row[i] : '';
       });
-      return out;
+      obj.sp = obj.sp ? parseInt(obj.sp, 10) || 0 : 0;
+      return obj;
     });
-
-    // デバッグ用（確認してください）
-    console.log("skills loaded:", skills.length, skills[0]);
-
-    // datalist に一括注入（ページ中に１つだけ）
-    const datalist = document.getElementById("skillList");
-    if (datalist) {
-      // 重複排除して option を作る
-      const seen = new Set();
-      datalist.innerHTML = skills
-        .map(s => (s.skill || ""))
-        .filter(v => v && !seen.has(v) && seen.add(v))
-        .map(v => `<option value="${escapeHtml(v)}">`)
-        .join("");
-    }
-
-    // テーブル初期描画（最初は空行1つ）
-    renderTable();
+    renderTableInitial();
   } catch (err) {
-    console.error("CSV読み込みエラー:", err);
+    console.error(err);
+    alert('skills.csv の読み込みに失敗しました。コンソールを確認してください。');
   }
 }
 
-function renderTable() {
-  const tbody = document.querySelector("#skillTable tbody");
-  tbody.innerHTML = "";
-  addRow(); // 最初は空行1つ
-}
-
-/* 1行追加 */
-function addRow() {
-  const tbody = document.querySelector("#skillTable tbody");
-  const tr = document.createElement("tr");
-
-  // スキル名セル（input + 削除ボタンを内包）
-  const tdSkill = document.createElement("td");
-  tdSkill.className = "skill-name";
-
-  const wrapper = document.createElement("div");
-  wrapper.style.display = "flex";
-  wrapper.style.alignItems = "center";
-  wrapper.style.gap = "8px";
-
-  const inputSkill = document.createElement("input");
-  inputSkill.setAttribute("list", "skillList");
-  inputSkill.placeholder = "スキル名を入力または選択";
-
-  // イベント: 入力（datalist選択含む）→ 一致するスキルがあれば反映
-  inputSkill.addEventListener("input", (e) => {
-    const val = (e.target.value || "").trim();
-    if (!val) {
-      clearRow(tr);
-      return;
-    }
-    // 完全一致を探す（trimで比較）
-    const skill = skills.find(s => (s.skill || "").trim() === val);
-    if (skill) {
-      updateRow(tr, val);
-      // 最後の行に入力したら次行を追加
-      if (tr === tbody.lastElementChild) addRow();
-    } else {
-      // 候補に無い入力は一旦表示はクリアしておく（SP等）
-      clearRow(tr);
-    }
-  });
-
-  // 削除ボタン（1行だけのときは非表示に制御）
-  const btnDelete = document.createElement("button");
-  btnDelete.type = "button";
-  btnDelete.className = "delete-btn";
-  btnDelete.title = "行を削除";
-  btnDelete.innerText = "🗑️";
-  btnDelete.addEventListener("click", () => {
-    const rows = tbody.querySelectorAll("tr");
-    if (rows.length > 1) {
-      tr.remove();
-      updateTotalSP();
-      checkDeleteButtons();
-    }
-  });
-
-  wrapper.appendChild(inputSkill);
-  wrapper.appendChild(btnDelete);
-  tdSkill.appendChild(wrapper);
-  tr.appendChild(tdSkill);
-
-  // SP
-  const tdSP = document.createElement("td");
-  tdSP.className = "sp";
-  tdSP.textContent = ""; // 未選択状態は空
-  tr.appendChild(tdSP);
-
-  // ヒントLv
-  const tdHint = document.createElement("td");
-  const selectHint = document.createElement("select");
-  selectHint.className = "hint-level";
-  // 0〜5
-  for (let i = 0; i <= 5; i++) {
-    const opt = document.createElement("option");
-    opt.value = i;
-    opt.textContent = i;
-    selectHint.appendChild(opt);
-  }
-  // ヒント変更時は現在のスキル名で再計算
-  selectHint.addEventListener("change", () => {
-    const name = inputSkill.value.trim();
-    if (name) updateRow(tr, name);
-  });
-  tdHint.appendChild(selectHint);
-  tr.appendChild(tdHint);
-
-  // 分類
-  const tdCategory = document.createElement("td");
-  tdCategory.className = "category";
-  tr.appendChild(tdCategory);
-
-  // 説明
-  const tdExplain = document.createElement("td");
-  tdExplain.className = "explain";
-  tr.appendChild(tdExplain);
-
-  tbody.appendChild(tr);
-  checkDeleteButtons();
-}
-
-/* 行をクリア（選択解除時） */
-function clearRow(tr) {
-  tr.querySelector(".sp").textContent = "";
-  tr.querySelector(".category").textContent = "";
-  tr.querySelector(".explain").textContent = "";
-}
-
-/* 削除ボタンの表示制御（行数が1なら非表示） */
-function checkDeleteButtons() {
-  const tbody = document.querySelector("#skillTable tbody");
-  const rows = Array.from(tbody.rows);
-  rows.forEach((tr) => {
-    const btn = tr.querySelector(".delete-btn");
-    if (!btn) return;
-    btn.style.display = rows.length === 1 ? "none" : "inline-block";
-  });
-}
-
-/* 行更新（スキル名が確定したときに呼ぶ） */
-function updateRow(tr, skillName) {
-  // トリムして正確に比較（CSV側の余白等を吸収）
-  const nameTrim = (skillName || "").trim();
-  const skill = skills.find(s => (s.skill || "").trim() === nameTrim);
-  if (!skill) {
-    // 一致しない場合は何もしない（clearRowは input event 側で処理）
-    return;
-  }
-
-  // base SP を安全に取得
-  const baseSp = parseInt((skill.sp || "").toString().replace(/[^\d\-]/g, ""), 10) || 0;
-
-  // ヒント割引率（0:0%,1:10%,2:20%,3:30%,4:35%,5:40%）
-  const discounts = [0, 0.10, 0.20, 0.30, 0.35, 0.40];
-  const hintSelect = tr.querySelector(".hint-level");
-  const hintLv = parseInt(hintSelect?.value || 0, 10);
-  const discount = discounts[hintLv] ?? 0;
-
-  let spAfterHint = Math.round(baseSp * (1 - discount));
-
-  // 切れ者ヘッダー適用（-10%）
-  const isKire = document.getElementById("kiremonoHeader")?.checked;
-  if (isKire) {
-    spAfterHint = Math.round(spAfterHint * 0.9);
-  }
-
-  tr.querySelector(".sp").textContent = spAfterHint >= 0 ? String(spAfterHint) : "0";
-
-  // 分類表示：tags を優先、それが無ければ category
-  tr.querySelector(".category").textContent = skill.tags || skill.category || "";
-  tr.querySelector(".explain").textContent = skill.explain || "";
-
+/* ---------- テーブル初期描画（最低1行） ---------- */
+function renderTableInitial() {
+  const tbody = document.querySelector('#skillTable tbody');
+  tbody.innerHTML = '';
+  addRow(); // 最低1行
   updateTotalSP();
 }
 
-/* 合計SPを再計算して表示 */
+/* ---------- 行追加（JS側） ---------- */
+function addRow(afterTr = null) {
+  const tbody = document.querySelector('#skillTable tbody');
+  const tr = document.createElement('tr');
+  tr.dataset.rowId = String(nextRowId++);
+  tr.setAttribute('draggable', 'true');
+
+  // 1) 空欄セル（削除ボタン）
+  const tdRemove = document.createElement('td');
+  tdRemove.className = 'text-center align-middle';
+  const btnRemove = document.createElement('button');
+  btnRemove.type = 'button';
+  btnRemove.className = 'btn btn-sm btn-outline-danger remove-row';
+  btnRemove.textContent = '−';
+  btnRemove.title = '行を削除';
+  tdRemove.appendChild(btnRemove);
+  tr.appendChild(tdRemove);
+
+  // 2) 分類（select）
+  const tdCategory = document.createElement('td');
+  tdCategory.className = 'align-middle';
+  const selectCat = document.createElement('select');
+  selectCat.className = 'form-select category-select';
+  CATEGORY_OPTIONS.forEach(opt => {
+    const o = document.createElement('option');
+    o.value = opt;
+    o.textContent = opt === '' ? '' : opt;
+    selectCat.appendChild(o);
+  });
+  tdCategory.appendChild(selectCat);
+  tr.appendChild(tdCategory);
+
+  // 3) スキル名（input + datalist）
+  const tdSkill = document.createElement('td');
+  tdSkill.className = 'align-middle';
+  const inputSkill = document.createElement('input');
+  inputSkill.type = 'text';
+  inputSkill.className = 'form-control skill-input';
+  inputSkill.placeholder = 'スキル名を入力';
+  const datalistId = `skills-datalist-${tr.dataset.rowId}`;
+  const datalist = document.createElement('datalist');
+  datalist.id = datalistId;
+  inputSkill.setAttribute('list', datalistId);
+  tdSkill.appendChild(inputSkill);
+  tdSkill.appendChild(datalist);
+  tr.appendChild(tdSkill);
+
+  // 4) SP
+  const tdSp = document.createElement('td');
+  tdSp.className = 'sp text-center align-middle';
+  tdSp.textContent = '0';
+  tr.appendChild(tdSp);
+
+  // 5) ヒントLv
+  const tdHint = document.createElement('td');
+  tdHint.className = 'align-middle';
+  const selectHint = document.createElement('select');
+  selectHint.className = 'form-select hint-select';
+  for (let i = 0; i <= 5; i++) {
+    const o = document.createElement('option');
+    o.value = i;
+    o.textContent = i;
+    selectHint.appendChild(o);
+  }
+  tdHint.appendChild(selectHint);
+  tr.appendChild(tdHint);
+
+  // 6) 効果 (tags)
+  const tdTags = document.createElement('td');
+  tdTags.className = 'tags align-middle';
+  tdTags.textContent = '';
+  tr.appendChild(tdTags);
+
+  // 7) 説明 (truncate + tooltip/title)
+  const tdExplain = document.createElement('td');
+  tdExplain.className = 'explain align-middle';
+  tdExplain.textContent = '';
+  tr.appendChild(tdExplain);
+
+  // 挿入
+  if (afterTr && afterTr.parentNode === tbody) tbody.insertBefore(tr, afterTr.nextSibling);
+  else tbody.appendChild(tr);
+
+  // --- イベントバインド ---
+  // datalist をカテゴリ + 部分一致で更新
+  function refreshDatalist(filterText = '') {
+    const cat = selectCat.value || '';
+    const q = (filterText || '').trim().toLowerCase();
+    const candidates = skills.filter(s => (cat === '' || (s.category || '') === cat));
+    const matches = q === '' ? candidates : candidates.filter(s => (s.skill || '').toLowerCase().includes(q));
+    datalist.innerHTML = '';
+    matches.forEach(s => {
+      const o = document.createElement('option');
+      o.value = s.skill;
+      datalist.appendChild(o);
+    });
+  }
+
+  // スキル名を適用して SP / tags / explain を更新
+  function applySkillByName(name) {
+    const q = (name || '').trim();
+    if (!q) {
+      tdSp.textContent = '0';
+      tdTags.textContent = '';
+      tdExplain.textContent = '';
+      tdExplain.removeAttribute('title');
+      updateTotalSP();
+      return;
+    }
+    // 完全一致優先 -> 部分一致
+    let skill = skills.find(s => (s.skill || '').toLowerCase() === q.toLowerCase());
+    if (!skill) skill = skills.find(s => (s.skill || '').toLowerCase().includes(q.toLowerCase()));
+    if (!skill) {
+      tdSp.textContent = '0';
+      tdTags.textContent = '';
+      tdExplain.textContent = '';
+      tdExplain.removeAttribute('title');
+      updateTotalSP();
+      return;
+    }
+    // base sp
+    const base = parseInt(skill.sp, 10) || 0;
+    const hintLv = parseInt(selectHint.value, 10) || 0;
+    let sp = Math.floor(base * (HINT_RATES[hintLv] || 1.0));
+    // 切れ者ヘッダ
+    const kire = document.getElementById('kiremonoHeader');
+    if (kire && kire.checked) sp = Math.floor(sp * 0.9);
+    tdSp.textContent = String(sp);
+    // 効果: '|' -> '・'
+    tdTags.textContent = (skill.tags || '').replace(/\|/g, '・');
+    // 説明: 切り詰め & title（ツールチップ）
+    const full = String(skill.explain || '');
+    tdExplain.textContent = (full.length > EXPLAIN_TRUNC_LEN) ? full.slice(0, EXPLAIN_TRUNC_LEN) + '…' : full;
+    if (full) tdExplain.setAttribute('title', full);
+    else tdExplain.removeAttribute('title');
+
+    updateTotalSP();
+  }
+
+  // イベント: 入力（typing）で datalist を更新（部分一致）
+  inputSkill.addEventListener('input', (e) => {
+    refreshDatalist(e.target.value);
+  });
+  // change / blur で確定
+  inputSkill.addEventListener('change', (e) => applySkillByName(e.target.value));
+  inputSkill.addEventListener('blur', (e) => applySkillByName(e.target.value));
+
+  // カテゴリ変更で datalist を更新（スキル名はクリア）
+  selectCat.addEventListener('change', () => {
+    inputSkill.value = '';
+    refreshDatalist('');
+    applySkillByName('');
+  });
+
+  // ヒントLv変更で再計算
+  selectHint.addEventListener('change', () => applySkillByName(inputSkill.value));
+
+  // 削除ボタン
+  btnRemove.addEventListener('click', () => {
+    const rows = document.querySelectorAll('#skillTable tbody tr');
+    if (rows.length <= 1) {
+      // 最低1行は維持 -> クリア
+      inputSkill.value = '';
+      selectCat.value = '';
+      selectHint.value = 0;
+      applySkillByName('');
+      return;
+    }
+    tr.remove();
+    updateTotalSP();
+  });
+
+  // Drag & Drop (シンプルな入れ替え)
+  tr.addEventListener('dragstart', (e) => {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', tr.dataset.rowId);
+    tr.classList.add('dragging');
+  });
+  tr.addEventListener('dragend', () => tr.classList.remove('dragging'));
+  tr.addEventListener('dragover', (e) => e.preventDefault());
+  tr.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const id = e.dataTransfer.getData('text/plain');
+    if (!id) return;
+    const dragged = document.querySelector(`#skillTable tbody tr[data-row-id="${id}"]`);
+    if (!dragged || dragged === tr) return;
+    // drop先の前に挿入
+    tr.parentNode.insertBefore(dragged, tr);
+    updateTotalSP();
+  });
+
+  // 初期 datalist
+  refreshDatalist('');
+  applySkillByName('');
+
+  return tr;
+}
+
+/* ---------- 合計SP更新 ---------- */
 function updateTotalSP() {
   let total = 0;
-  document.querySelectorAll("#skillTable tbody tr").forEach(tr => {
-    const sp = parseInt(tr.querySelector(".sp").textContent, 10);
-    if (!isNaN(sp)) total += sp;
+  document.querySelectorAll('#skillTable tbody tr').forEach(tr => {
+    const sp = parseInt(tr.querySelector('.sp').textContent, 10) || 0;
+    total += sp;
   });
-  document.getElementById("totalSP").textContent = total;
+  const el = document.getElementById('totalSP');
+  if (el) el.textContent = String(total);
 }
+
+/* ---------- DOMContentLoaded 初期化 ---------- */
+window.addEventListener('DOMContentLoaded', () => {
+  loadCSV();
+
+  // 最下部の「行を追加」ボタン（HTMLに記載済み）に処理をバインド
+  const addBtn = document.getElementById('addRowButton');
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      addRow(); // 最後に追加
+      // 追加直後はフォーカスをスキル入力に当てる
+      const rows = document.querySelectorAll('#skillTable tbody tr');
+      const last = rows[rows.length - 1];
+      if (last) {
+        const input = last.querySelector('.skill-input');
+        if (input) input.focus();
+      }
+    });
+  }
+
+  // ハンバーガーメニューの既存処理（あれば）
+  const menuButton = document.getElementById('menuButton');
+  const menuList = document.getElementById('menuList');
+  if (menuButton && menuList) {
+    menuButton.addEventListener('click', () => menuList.classList.toggle('hidden'));
+    document.addEventListener('click', (e) => {
+      if (!menuList.contains(e.target) && e.target !== menuButton) menuList.classList.add('hidden');
+    });
+    ['save','load','share'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('click', () => alert('実装予定です（準備中）。'));
+    });
+  }
+
+  // 切れ者チェックで全行を再計算
+  const kire = document.getElementById('kiremonoHeader');
+  if (kire) {
+    kire.addEventListener('change', () => {
+      document.querySelectorAll('#skillTable tbody tr').forEach(tr => {
+        const input = tr.querySelector('.skill-input');
+        if (input) {
+          // trigger change to recalc
+          const ev = new Event('change');
+          input.dispatchEvent(ev);
+        }
+      });
+      updateTotalSP();
+    });
+  }
+});

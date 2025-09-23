@@ -1,112 +1,194 @@
-/* styles.css */
+/* 共通 */
 body {
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif;
-  margin: 20px;
-  color: #111;
-  background: #fafafa;
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
 }
 
-header {
+/* ヘッダー */
+.header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  padding: 8px 16px;
+  background-color: #f0f0f0;
 }
 
-h1 {
-  margin: 0;
-  font-size: 20px;
-}
-
-.header-right {
+.header-left {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-.total { font-weight: 600; }
-
-.kire-label { display: flex; align-items: center; gap: 6px; }
-
-.menu { position: relative; }
-#menuButton {
-  font-size: 26px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  line-height: 1;
-  padding: 6px;
+.header-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: 12px;
+  margin-top: auto;
+  margin-bottom: auto;
 }
+
+.header-right {
+  position: relative;
+}
+
+#menuButton {
+  font-size: 24px;
+  cursor: pointer;
+}
+
 #menuList {
   position: absolute;
-  top: 36px;
   right: 0;
-  background: #fff;
-  border: 1px solid #ddd;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
-  border-radius: 6px;
-  padding: 6px 0;
-  min-width: 160px;
-  z-index: 30;
+  top: 36px;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  list-style: none;
+  padding: 8px 0;
+  margin: 0;
+  min-width: 120px;
+  z-index: 1000;
 }
-#menuList button {
-  display: block;
-  width: 100%;
-  text-align: left;
-  background: none;
-  border: none;
-  padding: 8px 14px;
-  cursor: pointer;
-  color: #111;
-}
-#menuList button:hover { background: #f5f7fb; }
-.hidden { display: none; }
 
-/* table */
+#menuList li {
+  padding: 4px 16px;
+  cursor: pointer;
+}
+
+#menuList li:hover {
+  background-color: #eee;
+}
+
+.hidden {
+  display: none;
+}
+
+.container {
+  max-width: 1180px;
+}
+
+.t-handle {
+  width: 10px;
+}
+.t-empty {
+  width: 40px;
+}
+.t-category {
+  width: 150px;
+}
+.t-skill {
+  width: 280px;
+}
+.t-sp {
+  width: 80px;
+}
+.t-hint {
+  width: 100px;
+}
+.t-tags {
+  width: 120px;
+}
+.t-explain {
+  width: 440px;
+}
+
+/* テーブル */
 table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 14px;
-  background: #fff;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+  margin-top: 16px;
 }
-thead th {
-  background: #f3f6fb;
-  padding: 10px 12px;
+
+th, td {
+  border: 1px solid #ccc;
+  padding: 4px 8px;
   text-align: left;
-  font-weight: 600;
-  border-bottom: 1px solid #e6eef8;
-}
-tbody td {
-  padding: 10px 12px;
-  border-bottom: 1px solid #f0f4fb;
-  vertical-align: top;
+  vertical-align: middle;
 }
 
-/* column widths */
-.skill-name { width: 300px; }
-.sp { width: 80px; text-align: right; }
-.hint-level { width: 90px; }
-.category { width: 200px; }
-.explain { width: auto; }
+/* スキル名 + アイコンコンテナ */
+.skill-name-container {
+  display: flex;
+  align-items: center; /* 垂直中央揃え */
+  gap: 8px;            /* セレクトボックスとアイコンの間隔 */
+}
 
-/* input styles */
-.skill-name input, select {
-  width: 100%;
-  padding: 6px 8px;
-  border-radius: 6px;
-  border: 1px solid #d7e2f5;
-  background: #fff;
-  font-size: 14px;
+.choices {
+  margin-bottom: 0px !important;
+}
+
+/* Choices.js セレクトボックス */
+.skill-select + .choices {
+  min-width: 200px;    /* 初期横幅を固定 */
+  max-width: 200px;
+  width: 200px;
+}
+
+/* スキル名セレクトボックス */
+td .choices__inner {
+  min-height: 32px !important;
+  min-width: 200px;  /* 横幅固定 */
+  max-width: 200px;
+  display: flex;
+  align-items: center; /* 中央揃え */
   box-sizing: border-box;
 }
-.delete-btn {
-  background: none;
-  border: none;
+
+/* + - アイコン */
+.skill-name-container .icon-btn {
+  font-size: 24px;   /* アイコン大きめ */
   cursor: pointer;
-  color: #e53935;
-  font-size: 18px;
-  margin-left: 8px;
+  user-select: none;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+
+td .choices__list--dropdown {
+  max-height: 300px; /* リストの高さ */
+  overflow-y: auto;
+}
+
+/* SP, ヒントLv, 分類 */
+td .sp, td .hint-level, td .category {
+  text-align: center;
+  vertical-align: middle; /* 縦中央揃え */
+}
+
+/* SP 列の位置を安定 */
+td .sp {
+  text-align: center;
+  vertical-align: middle;
+}
+
+/* 説明 */
+td .explain {
+  max-width: 440px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* modern clamp (webkit) */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1; /* ここを 1 にすることで「2行以上になると…」＝結果1行表示+省略 */
+  line-clamp: 1;
+  /* フォールバック: 一部ブラウザで動かない場合は single-line ellipsis */
+  white-space: nowrap;
+  /* 見た目調整 */
+  vertical-align: middle;
+}
+
+td .explain:hover::after {
+  content: attr(data-title);
+  position: absolute;
+  background: #333;
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  white-space: normal;
+  z-index: 2000;
+  left: 0;
 }
