@@ -192,3 +192,17 @@ td .explain:hover::after {
   z-index: 2000;
   left: 0;
 }
+
+/* スキル入力横のクリアボタン */
+.btn-clear-skill {
+  min-width: 28px;
+  padding: 0 6px;
+  line-height: 1;
+  font-weight: 600;
+  color: #444;
+  background: rgba(0,0,0,0.03);
+  border: 1px solid rgba(0,0,0,0.08);
+}
+.btn-clear-skill:hover {
+  background: rgba(0,0,0,0.06);
+}
