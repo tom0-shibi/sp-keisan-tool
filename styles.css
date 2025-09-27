@@ -81,23 +81,43 @@ th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: left; vertical-al
 td.sp, td.hint-level, td.category { text-align: center; vertical-align: middle; }
 
 /* スキル名 + クリアボタンラップ */
-.skill-name-container, .skill-input-wrapper {
+.skill-name-container {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-/* clear button */
+/* スキル入力ラッパー: クリアボタンを input 内に重ねるため position:relative */
+.skill-input-wrapper {
+  position: relative;
+}
+
+/* 入力の右側にクリアボタンのスペースを確保 */
+.skill-input-wrapper .skill-input {
+  padding-right: 38px; /* ボタン幅 + マージン */
+}
+
+/* クリアボタンを入力内に重ねて配置 */
 .btn-clear-skill {
-  min-width: 28px;
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: auto;
   padding: 0 6px;
   line-height: 1;
+  border: none;
+  background: transparent;
+  cursor: pointer;
   font-weight: 600;
   color: #444;
-  background: rgba(0,0,0,0.03);
-  border: 1px solid rgba(0,0,0,0.08);
 }
-.btn-clear-skill:hover { background: rgba(0,0,0,0.06); }
+
+.btn-clear-skill:hover { background: rgba(0,0,0,0.04); border-radius: 4px; }
+
+/* suggestion box item (small polish) */
+.skill-suggestions { font-family: inherit; border-radius: 4px; }
+.skill-suggestion-item { user-select: none; }
 
 /* 効果（tags）: 幅160px, 最大2行、超過は省略 */
 td.tags {
