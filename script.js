@@ -10,16 +10,30 @@ let nextRowId = 1;
 const suggestionState = new WeakMap();
 const suggestionRegistry = [];
 
-/* ---------- normalizeForSearch ----------
-   - NFKC / lowercase
-   - カタカナ -> ひらがな
-   - 長音符除去（ー）
-   - 記号/空白の除去（Unicode property がなければフォールバック）
+/* ---------- ユーティリティ: Unicode 対応 base64 ---------- */
+function base64EncodeUnicode(str) {
+  // Unicode safe base64
+  return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function (_, p1) {
+    return String.fromCharCode('0x' + p1);
+  }));
+}
+function base64DecodeUnicode(str) {
+  return decodeURIComponent(Array.prototype.map.call(atob(str), function (c) {
+    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+  }).join(''));
+}
+
+/* ---------- 文字列正規化（検索用） ----------
+   - NFKC 変換、小文字化
+   - カタカナ -> ひらがな（簡易）
+   - 長音符（ー）を削除
+   - 記号/空白を除去（Unicode property が使えない環境のためフォールバックあり）
 ------------------------------------------- */
 function normalizeForSearch(src = '') {
   if (!src) return '';
   let s = src.normalize('NFKC').toLowerCase().trim();
-  s = s.replace(/[\u30A1-\u30F6]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60)); // カナ→ひら
+  // カタカナをひらがなに（U+30A1 - U+30F6 -> -0x60）
+  s = s.replace(/[\u30A1-\u30F6]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
   s = s.replace(/ー/g, '');
   try {
     s = s.replace(/[\p{P}\p{S}\s]+/gu, '');
@@ -29,9 +43,7 @@ function normalizeForSearch(src = '') {
   return s;
 }
 
-/* ---------- CSV parser ----------
-   - シンプルながら堅牢なダブルクオート対応パーサ
-------------------------------------------- */
+/* ---------- CSV parser（ダブルクオート対応） ---------- */
 function parseCSV(text) {
   const rows = [];
   let cur = '', row = [], inQuotes = false;
@@ -51,11 +63,7 @@ function parseCSV(text) {
   return rows.map(r => r.map(c => c.replace(/^"|"$/g, '').trim()));
 }
 
-/* ---------- loadCSV ----------
-   - ヘッダに合わせてオブジェクト化
-   - reading を分割して正規化配列を保持
-   - child_id を配列化して _childIds に格納
-------------------------------------------- */
+/* ---------- CSV 読込 ---------- */
 async function loadCSV() {
   try {
     const resp = await fetch(CSV_PATH, { cache: 'no-store' });
@@ -80,26 +88,25 @@ async function loadCSV() {
     });
     skillById = new Map();
     skills.forEach(s => skillById.set(String(s.id), s));
-    renderTableInitial(); // 初期描画
+    renderTableInitial();
+    return true;
   } catch (err) {
     console.error(err);
     alert('skills.csv の読み込みに失敗しました。コンソールを確認してください。');
+    return false;
   }
 }
 
-/* ---------- renderTableInitial ----------
-   - テーブル tbody をクリアして最初の行を追加
-   - ここが無いと loadCSV 後に画面が描画されないことがあるため必須
-------------------------------------------- */
+/* ---------- 初期描画（必須） ---------- */
 function renderTableInitial() {
   const tbody = document.querySelector('#skillTable tbody');
   if (!tbody) return;
   tbody.innerHTML = '';
-  addRow(); // 最低1行表示
+  addRow();
   updateTotalSP();
 }
 
-/* ---------- SP 計算・合計更新 ---------- */
+/* ---------- SP 計算 / 合計更新 ---------- */
 function calcSP(baseSP, hintLv, isKire) {
   const hintPct = HINT_PERCENT[hintLv] !== undefined ? HINT_PERCENT[hintLv] : 0;
   const totalPct = hintPct + (isKire ? 10 : 0);
@@ -116,10 +123,10 @@ function updateTotalSP() {
   if (el) el.textContent = String(total);
 }
 
-/* ---------- findMatches ----------
-   - query が空 -> カテゴリで絞った全件（=空入力時の候補）
-   - kana が含まれる場合は reading を優先して部分一致
-   - スコア順で返す（完全一致優先 etc.）
+/* ---------- 検索ロジック: findMatches ----------
+   - 空クエリ -> カテゴリで絞った全件（=空入力で候補）
+   - ひらがな/カタカナを含む場合 (hasKana) は reading を優先的に部分一致判定
+   - スコア順にソート（完全一致 > reading 完全一致 > reading 部分一致 > name 部分一致 > ...）
 ------------------------------------------- */
 function findMatches(queryRaw = '', categoryFilter = '', limit = 200) {
   const rawTrim = (queryRaw || '').trim();
@@ -149,19 +156,16 @@ function findMatches(queryRaw = '', categoryFilter = '', limit = 200) {
   return results.map(r => r.s).slice(0, limit);
 }
 
-/* ---------- isSkillAlreadyInTable ----------
-   - 同一 id のスキルが既にテーブルにあるか判定
-------------------------------------------- */
+/* ---------- テーブル内に既にスキルが存在するか判定 ---------- */
 function isSkillAlreadyInTable(skillId) {
   if (!skillId) return false;
   return Array.from(document.querySelectorAll('#skillTable tbody tr'))
     .some(r => r.dataset.skillId === String(skillId));
 }
 
-/* ---------- addChildrenRecursively ----------
-   - child_id を辿って行を挿入（既にあればスキップ）
-   - 循環は visited で防ぐ
-   - 自動追加フラグは付けるが、親削除で子を勝手に削除しない（要件）
+/* ---------- 再帰的に子スキルを追加（親選択時に呼ぶ） ----------
+   - 循環を visited で防ぐ
+   - 自動追加フラグを dataset.autoAddedBy に付与（だが削除は行単位でユーザに任せる）
 ------------------------------------------- */
 function addChildrenRecursively(parentTr, skillObj, visited = new Set()) {
   if (!skillObj || !skillObj._childIds || skillObj._childIds.length === 0) return;
@@ -182,7 +186,6 @@ function addChildrenRecursively(parentTr, skillObj, visited = new Set()) {
       continue;
     }
     const childTr = addRow(insertAfter);
-    // 自動追加フラグ（ただし削除は行単位でユーザーが実行する）
     childTr.dataset.autoAddedBy = parentTr.dataset.rowId;
     setRowFromSkill(childTr, childSkill);
     insertAfter = childTr;
@@ -191,11 +194,7 @@ function addChildrenRecursively(parentTr, skillObj, visited = new Set()) {
   }
 }
 
-/* ---------- Suggestion box utilities ----------
-   - createOrGetSuggestionBox: body にボックスを一つ作る（row ごとに管理）
-   - showSuggestionsForRow: findMatches を用いて box を埋める
-   - selectSuggestion: スキルを選択して行に適用
-------------------------------------------- */
+/* ---------- Suggestion UI: box 管理 ---------- */
 function createOrGetSuggestionBox(tr) {
   let st = suggestionState.get(tr);
   if (st) return st;
@@ -242,7 +241,7 @@ function highlightSuggestion(tr, idx) {
   }
 }
 function selectSuggestion(tr, skillObj) {
-  // カテゴリが空なら選んだスキルのカテゴリをセット
+  // カテゴリが空なら自動でセット
   const catSel = tr.querySelector('.category-select');
   if (catSel && (!catSel.value || catSel.value === '')) {
     if (skillObj.category) catSel.value = skillObj.category;
@@ -280,7 +279,7 @@ function showSuggestionsForRow(tr, query = '') {
   box.style.display = 'block';
 }
 
-/* keyboard nav for suggestions */
+/* ---------- キーボードで候補操作 ---------- */
 function handleKeyNavigation(e, tr) {
   const st = suggestionState.get(tr);
   if (!st || st.items.length === 0) return;
@@ -305,9 +304,7 @@ function handleKeyNavigation(e, tr) {
   }
 }
 
-/* ---------- setRowFromSkill ----------
-   - 行にスキル情報を表示（SP, tags, explain, category）
-------------------------------------------- */
+/* ---------- 行にスキルを反映 ---------- */
 function setRowFromSkill(tr, skillObj) {
   if (!tr || !skillObj) return;
   const input = tr.querySelector('.skill-input');
@@ -344,10 +341,7 @@ function setRowFromSkill(tr, skillObj) {
   updateTotalSP();
 }
 
-/* ---------- addRow: 行作成 + イベントバインド ----------
-   - ここで input の focus 時に空入力でも候補を表示する（カテゴリフィルタあり）
-   - クリア（✕）は行単位で、子は残す（要件）
-------------------------------------------- */
+/* ---------- 行作成 + イベントバインド ---------- */
 function addRow(afterTr = null) {
   const tbody = document.querySelector('#skillTable tbody');
   const tr = document.createElement('tr');
@@ -408,24 +402,16 @@ function addRow(afterTr = null) {
   if (afterTr && afterTr.parentNode === tbody) tbody.insertBefore(tr, afterTr.nextSibling);
   else tbody.appendChild(tr);
 
-  /* イベント */
-  // 入力中 -> 候補更新
+  /* イベントバインド */
   inputSkill.addEventListener('input', (e) => { showSuggestionsForRow(tr, e.target.value); });
-
-  // フォーカス -> 空入力でも候補を表示（カテゴリがあれば絞る）
   inputSkill.addEventListener('focus', () => { showSuggestionsForRow(tr, inputSkill.value || ''); });
-
-  // キーボード操作（上下/Enter/Esc）
   inputSkill.addEventListener('keydown', (e) => handleKeyNavigation(e, tr));
-
-  // blur -> 隠す（短い遅延で mousedown の選択を許す）
   inputSkill.addEventListener('blur', () => {
     const st = suggestionState.get(tr);
     if (!st) return;
     st.hideTimeout = setTimeout(() => hideSuggestionBox(tr), 150);
   });
 
-  // change: 選ばれていれば最優先候補を採用、なければ行のスキル結び付けを解除（カテゴリは維持しない）
   inputSkill.addEventListener('change', () => {
     const text = inputSkill.value || '';
     const cat = (selectCat.value || '').trim();
@@ -445,7 +431,6 @@ function addRow(afterTr = null) {
     hideSuggestionBox(tr);
   });
 
-  // クリアボタン: 行単位のみクリア（スキル＋カテゴリ）
   btnClear.addEventListener('click', () => {
     inputSkill.value = '';
     selectCat.value = '';
@@ -458,10 +443,8 @@ function addRow(afterTr = null) {
     inputSkill.focus();
   });
 
-  // カテゴリ変更 -> 候補更新（入力は消さない）
   selectCat.addEventListener('change', () => { showSuggestionsForRow(tr, inputSkill.value || ''); });
 
-  // ヒント変化 -> SP 再計算
   selectHint.addEventListener('change', () => {
     const sid = tr.dataset.skillId;
     if (sid) {
@@ -470,7 +453,6 @@ function addRow(afterTr = null) {
     }
   });
 
-  // 削除ボタン: 行単位削除（最後の一行はクリア）
   btnRemove.addEventListener('click', () => {
     const rows = document.querySelectorAll('#skillTable tbody tr');
     if (rows.length <= 1) {
@@ -481,7 +463,7 @@ function addRow(afterTr = null) {
     tr.remove(); updateTotalSP();
   });
 
-  // drag/drop: 既存と同様
+  // drag/drop (既存の動作と同様)
   tr.addEventListener('dragstart', (e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', tr.dataset.rowId); tr.classList.add('dragging'); });
   tr.addEventListener('dragend', () => tr.classList.remove('dragging'));
   tr.addEventListener('dragover', (e) => e.preventDefault());
@@ -492,7 +474,7 @@ function addRow(afterTr = null) {
     tr.parentNode.insertBefore(dragged, tr); updateTotalSP();
   });
 
-  // tbody の drop（末尾追加等）
+  // tbody drop
   const tbodyEl = document.querySelector('#skillTable tbody');
   if (!tbodyEl._dropBound) {
     tbodyEl.addEventListener('dragover', (e) => e.preventDefault());
@@ -510,6 +492,174 @@ function addRow(afterTr = null) {
   return tr;
 }
 
+/* ---------- 保存 / 読込 / 共有 機能 ---------- */
+
+// テーブルから現在の一覧データを抽出
+function getCurrentTableDataForSave() {
+  const rows = [];
+  document.querySelectorAll('#skillTable tbody tr').forEach(tr => {
+    const category = tr.querySelector('.category-select')?.value || '';
+    const skillId = tr.dataset.skillId || '';
+    const skillName = tr.querySelector('.skill-input')?.value || '';
+    const hintLv = parseInt(tr.querySelector('.hint-select')?.value || '0', 10) || 0;
+    // 保存時には autoAddedBy も保存しておく（復元時に尊重できる）
+    const autoAddedBy = tr.dataset.autoAddedBy || '';
+    rows.push({ category, skillId, skillName, hintLv, autoAddedBy });
+  });
+  const kiremono = document.getElementById('kiremonoHeader')?.checked || false;
+  return { rows, kiremono };
+}
+
+// テーブルに一覧データを適用（上書き）
+function applyListData(listData) {
+  const tbody = document.querySelector('#skillTable tbody');
+  if (!tbody) return;
+  // clear existing
+  tbody.innerHTML = '';
+  nextRowId = 1; // reset row id counter (optional)
+  // restore kiremono
+  if (listData.kiremono !== undefined) {
+    const k = document.getElementById('kiremonoHeader');
+    if (k) k.checked = !!listData.kiremono;
+  }
+  // add rows
+  (listData.rows || []).forEach(r => {
+    const tr = addRow();
+    // If skillId exists and known, use it; otherwise try best-match by name
+    let skillObj = null;
+    if (r.skillId && skillById.has(String(r.skillId))) {
+      skillObj = skillById.get(String(r.skillId));
+    } else if (r.skillName) {
+      // try exact name first then fuzzy findMatches fallback
+      skillObj = skills.find(s => (s.skill || '').toLowerCase() === (r.skillName || '').toLowerCase());
+      if (!skillObj) {
+        const cand = findMatches(r.skillName, r.category || '', 1);
+        if (cand && cand.length > 0) skillObj = cand[0];
+      }
+    }
+    // set category/hint regardless
+    const catSel = tr.querySelector('.category-select');
+    if (catSel && r.category) catSel.value = r.category;
+    const hintSel = tr.querySelector('.hint-select');
+    if (hintSel && typeof r.hintLv !== 'undefined') hintSel.value = r.hintLv;
+
+    if (skillObj) {
+      setRowFromSkill(tr, skillObj);
+      if (skillObj._childIds && skillObj._childIds.length > 0) {
+        // replicate behavior: add children when parent restored
+        addChildrenRecursively(tr, skillObj, new Set([String(skillObj.id)]));
+      }
+    } else {
+      // skill not found — display name raw
+      const input = tr.querySelector('.skill-input');
+      if (input && r.skillName) input.value = r.skillName;
+      delete tr.dataset.skillId;
+      tr.querySelector('.sp').textContent = '0';
+      tr.querySelector('.tags').innerHTML = '';
+      tr.querySelector('.explain').innerHTML = '';
+    }
+  });
+  updateTotalSP();
+}
+
+// 保存: ポップアップでスロット(0-9), タイトル, メモを入力して localStorage に保存
+function saveList() {
+  const slotStr = prompt('保存するスロット番号を入力してください（0-9）:');
+  if (slotStr === null) return;
+  const slot = parseInt(slotStr, 10);
+  if (isNaN(slot) || slot < 0 || slot > 9) { alert('0〜9 の整数を入力してください。'); return; }
+
+  if (!confirm(`スロット ${slot} に現在の一覧を保存しますか？`)) return;
+
+  const title = prompt('この保存にタイトルを付けてください（任意）:', '') || '';
+  if (title === null) return; // cancel
+  const memo = prompt('メモ（任意）:', '') || '';
+  if (memo === null) return;
+
+  const payload = getCurrentTableDataForSave();
+  payload.title = title;
+  payload.memo = memo;
+  payload.timestamp = Date.now();
+
+  try {
+    localStorage.setItem('umamusume_slot_' + slot, JSON.stringify(payload));
+    alert(`スロット ${slot} に保存しました。`);
+  } catch (e) {
+    console.error(e);
+    alert('保存に失敗しました（localStorage）。');
+  }
+}
+
+// 読込: スロット一覧を表示して番号入力で読み込み（上書き）
+function loadList() {
+  const slots = [];
+  for (let i = 0; i < 10; i++) {
+    const raw = localStorage.getItem('umamusume_slot_' + i);
+    if (raw) {
+      try {
+        const d = JSON.parse(raw);
+        const date = d.timestamp ? new Date(d.timestamp).toLocaleString() : '日時不明';
+        slots.push(`${i}: ${d.title || '(無題)'} — ${date}`);
+      } catch {
+        slots.push(`${i}: <破損データ>`);
+      }
+    } else {
+      slots.push(`${i}: （空）`);
+    }
+  }
+  const listText = slots.join('\n');
+  const choice = prompt('読み込むスロットを選んでください（0-9）:\n' + listText);
+  if (choice === null) return;
+  const slotNum = parseInt(choice, 10);
+  if (isNaN(slotNum) || slotNum < 0 || slotNum > 9) { alert('0〜9 の整数を入力してください。'); return; }
+  const raw = localStorage.getItem('umamusume_slot_' + slotNum);
+  if (!raw) { alert('選択スロットは空です。'); return; }
+  if (!confirm(`スロット ${slotNum} を読み込みます。現在の一覧は上書きされます。よろしいですか？`)) return;
+  try {
+    const d = JSON.parse(raw);
+    applyListData(d);
+    alert(`スロット ${slotNum} を読み込みました: ${d.title || '(無題)'}`);
+  } catch (e) {
+    console.error(e);
+    alert('読み込みに失敗しました（データ破損の可能性）。');
+  }
+}
+
+// 共有: 現在の一覧を base64(U) で URL に埋め込んで prompt 表示
+function shareList() {
+  const payload = getCurrentTableDataForSave();
+  try {
+    const json = JSON.stringify(payload);
+    const encoded = base64EncodeUnicode(json);
+    const url = window.location.origin + window.location.pathname + '?data=' + encodeURIComponent(encoded);
+    prompt('このリンクをコピーして共有してください:', url);
+  } catch (e) {
+    console.error(e);
+    alert('共有リンクの生成に失敗しました。');
+  }
+}
+
+// 起動時に URL パラメータ data があれば復元（自動）
+function processSharedParamIfAny() {
+  const params = new URLSearchParams(window.location.search);
+  if (!params.has('data')) return;
+  try {
+    const enc = params.get('data');
+    if (!enc) return;
+    const decoded = base64DecodeUnicode(decodeURIComponent(enc));
+    const obj = JSON.parse(decoded);
+    // そのまま適用（上書き）
+    applyListData(obj);
+    alert('共有データを読み込みました。');
+    // remove param from URL (optional) to avoid repeated prompts on reload
+    const newUrl = window.location.origin + window.location.pathname;
+    window.history.replaceState({}, document.title, newUrl);
+  } catch (e) {
+    console.error('共有データの復元に失敗:', e);
+    // do not alert user too aggressively
+  }
+}
+
 /* ---------- 初期化 ---------- */
 window.addEventListener('DOMContentLoaded', () => {
   // 行追加ボタン
@@ -517,15 +667,24 @@ window.addEventListener('DOMContentLoaded', () => {
     const tr = addRow(); tr.querySelector('.skill-input')?.focus();
   });
 
-  // メニュー（そのまま）
-  const menuButton = document.getElementById('menuButton'); const menuList = document.getElementById('menuList');
+  // ハンバーガーメニュー
+  const menuButton = document.getElementById('menuButton');
+  const menuList = document.getElementById('menuList');
   if (menuButton && menuList) {
     menuButton.addEventListener('click', () => menuList.classList.toggle('hidden'));
-    document.addEventListener('click', (e) => { if (!menuList.contains(e.target) && e.target !== menuButton) menuList.classList.add('hidden'); });
-    ['save','load','share'].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('click', () => alert('実装予定です（準備中）。')); });
+    document.addEventListener('click', (e) => {
+      if (!menuList.contains(e.target) && e.target !== menuButton) menuList.classList.add('hidden');
+    });
+    // 実装：保存/読込/共有
+    const elSave = document.getElementById('save');
+    const elLoad = document.getElementById('load');
+    const elShare = document.getElementById('share');
+    if (elSave) elSave.addEventListener('click', () => saveList());
+    if (elLoad) elLoad.addEventListener('click', () => loadList());
+    if (elShare) elShare.addEventListener('click', () => shareList());
   }
 
-  // 切れ者チェッック -> 全行再計算
+  // 切れ者ヘッダチェックで全行再計算
   const kire = document.getElementById('kiremonoHeader');
   if (kire) {
     kire.addEventListener('change', () => {
@@ -552,6 +711,8 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // CSV 読み込み（これが最初の描画を走らせる）
-  loadCSV();
+  // CSV 読み込みを行い、読み終わったら URL の data をチェックして復元
+  loadCSV().then(() => {
+    processSharedParamIfAny();
+  });
 });
