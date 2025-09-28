@@ -13,13 +13,10 @@ const suggestionRegistry = [];
 
 /* ---------- ユーティリティ ---------- */
 function pad2(n){ return n.toString().padStart(2,'0'); }
-function formatDate(ts){
-  const d = new Date(ts || Date.now());
-  return `${d.getFullYear()}/${pad2(d.getMonth()+1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
-}
+function formatDate(ts){ const d = new Date(ts || Date.now()); return `${d.getFullYear()}/${pad2(d.getMonth()+1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`; }
 
 /* normalizeForSearch: NFKC, lower, カタカナ->ひらがな, 長音符除去, 記号/空白除去 */
-function normalizeForSearch(src = ''){
+function normalizeForSearch(src = '') {
   if(!src) return '';
   let s = src.normalize('NFKC').toLowerCase().trim();
   s = s.replace(/[\u30A1-\u30F6]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
@@ -29,7 +26,7 @@ function normalizeForSearch(src = ''){
   return s;
 }
 
-/* ---------- CSV parser ---------- */
+/* ---------- CSV parser (堅牢) ---------- */
 function parseCSV(text){
   const rows=[];
   let cur='', row=[], inQuotes=false;
@@ -157,6 +154,7 @@ function addChildrenRecursively(parentTr, skillObj, visited = new Set()){
       continue;
     }
     const childTr = addRow(insertAfter);
+    // 自動追加フラグ（ただし削除はユーザー任せ）
     childTr.dataset.autoAddedBy = parentTr.dataset.rowId;
     setRowFromSkill(childTr, childSkill);
     insertAfter = childTr;
@@ -332,6 +330,7 @@ function addRow(afterTr = null){
     st.hideTimeout = setTimeout(()=> hideSuggestionBox(tr), 150);
   });
 
+  // change: マッチがあれば最優先候補を選択、なければ解除
   inputSkill.addEventListener('change', ()=>{
     const text = inputSkill.value || '';
     const cat = (selectCat.value || '').trim();
@@ -351,6 +350,7 @@ function addRow(afterTr = null){
     hideSuggestionBox(tr);
   });
 
+  // クリア（行単位）：入力と分類をクリア、子は消さない（要件）
   btnClear.addEventListener('click', ()=>{
     inputSkill.value=''; selectCat.value=''; delete tr.dataset.skillId;
     tr.querySelector('.sp').textContent='0'; tr.querySelector('.tags').innerHTML=''; tr.querySelector('.explain').innerHTML='';
@@ -358,12 +358,15 @@ function addRow(afterTr = null){
     showSuggestionsForRow(tr, ''); inputSkill.focus();
   });
 
+  // カテゴリ変更 -> 候補更新（入力は消さない）
   selectCat.addEventListener('change', ()=> showSuggestionsForRow(tr, inputSkill.value || ''));
 
+  // ヒント変更 -> 再計算
   selectHint.addEventListener('change', ()=>{
     const sid = tr.dataset.skillId; if(sid){ const s = skillById.get(String(sid)); if(s) setRowFromSkill(tr, s); }
   });
 
+  // 削除ボタン: 行単位削除（最後の一行はクリア）
   btnRemove.addEventListener('click', ()=>{
     const rows = document.querySelectorAll('#skillTable tbody tr');
     if(rows.length <= 1){
@@ -374,7 +377,7 @@ function addRow(afterTr = null){
     tr.remove(); updateTotalSP();
   });
 
-  // drag/drop
+  // drag/drop handlers
   tr.addEventListener('dragstart', (e)=> { e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain', tr.dataset.rowId); tr.classList.add('dragging'); });
   tr.addEventListener('dragend', ()=> tr.classList.remove('dragging'));
   tr.addEventListener('dragover', (e)=> e.preventDefault());
@@ -471,7 +474,6 @@ function loadAllSlots(){
   }
   return arr;
 }
-
 function saveToSlot(index, payload){
   payload.timestamp = Date.now();
   localStorage.setItem(SLOT_KEY_PREFIX + index, JSON.stringify(payload));
@@ -492,7 +494,15 @@ function openSlotModal(mode){
   document.getElementById('slotModalMessage').textContent = '';
 
   title.textContent = mode === 'save' ? 'スロットに保存' : 'スロットを読込';
-  actionBtn.textContent = mode === 'save' ? '保存' : '閉じる';
+  // action ボタンの表示 / 有効状態切り替え
+  actionBtn.style.display = 'inline-block';
+  if(mode === 'save') {
+    actionBtn.textContent = '保存';
+    actionBtn.disabled = false;
+  } else {
+    actionBtn.textContent = '読込';
+    actionBtn.disabled = true; // 初期は非活性。スロット選択で有効化
+  }
   slotEditor.classList.add('hidden');
 
   grid.innerHTML = '';
@@ -517,6 +527,7 @@ function openSlotModal(mode){
 
     card.addEventListener('click', (e)=>{
       e.stopPropagation();
+      // 選択 UI
       Array.from(grid.children).forEach(c => c.classList.remove('selected'));
       card.classList.add('selected');
       selectedSlotIndex = slot.index;
@@ -528,7 +539,14 @@ function openSlotModal(mode){
         titleInput.value = slot.empty ? '' : (slot.data.title || '');
         titleInput.focus();
       } else {
-        // load mode: handled by outer click handler bound below
+        // load mode: enable action button only if slot has data
+        const actionBtn = document.getElementById('slotModalAction');
+        if(slot.empty || slot.corrupted) {
+          actionBtn.disabled = true;
+          document.getElementById('slotModalMessage').textContent = `選択スロットにデータがありません`;
+        } else {
+          actionBtn.disabled = false;
+        }
       }
     });
 
@@ -538,7 +556,6 @@ function openSlotModal(mode){
   openModalManaged(document.getElementById('slotModal'));
 }
 
-/* open/close slot modal helpers */
 function closeSlotModal(){
   const modal = document.getElementById('slotModal');
   document.getElementById('slotGrid').innerHTML = '';
@@ -547,20 +564,38 @@ function closeSlotModal(){
   closeModalManaged(modal);
 }
 
+// 保存 or 読込ボタン押下時の処理（モードに依存）
 function slotModalAction(){
-  if(currentSlotModalMode !== 'save'){ closeSlotModal(); return; }
-  if(selectedSlotIndex === null){ alert('保存先のスロットを選択してください。'); return; }
-  const titleInput = document.getElementById('slotTitleInput');
-  const title = titleInput.value || '';
-  const payload = getCurrentTableDataForSave();
-  payload.title = title || '';
-  payload.timestamp = Date.now();
-  try{
-    saveToSlot(selectedSlotIndex, payload);
-    setSlotModalMessage(`スロット ${selectedSlotIndex+1} に保存しました。`);
+  if(currentSlotModalMode === 'save'){
+    if(selectedSlotIndex === null){ alert('保存先のスロットを選択してください。'); return; }
+    const titleInput = document.getElementById('slotTitleInput');
+    const title = titleInput.value || '';
+    const payload = getCurrentTableDataForSave();
+    payload.title = title || '';
+    payload.timestamp = Date.now();
+    try{
+      saveToSlot(selectedSlotIndex, payload);
+      setSlotModalMessage(`スロット ${selectedSlotIndex+1} に保存しました。`);
+      closeSlotModal();
+    }catch(e){
+      console.error(e); alert('保存に失敗しました (localStorage)。');
+    }
+  } else if(currentSlotModalMode === 'load'){
+    if(selectedSlotIndex === null){ alert('読み込むスロットを選択してください。'); return; }
+    const raw = localStorage.getItem(SLOT_KEY_PREFIX + selectedSlotIndex);
+    if(!raw){ alert('選択スロットにデータがありません'); return; }
+    try{
+      const obj = JSON.parse(raw);
+      const ok = confirm(`スロット ${selectedSlotIndex+1} を読み込みます。現在の一覧は上書きされます。よろしいですか？`);
+      if(ok){
+        // 要件: 読込時は child 自動生成を再実行しない（保存時の見たまま表示）
+        applyListData(obj);
+        setSlotModalMessage(`スロット ${selectedSlotIndex+1} を読み込みました。`);
+        closeSlotModal();
+      }
+    }catch(e){ alert('データの復元に失敗しました'); }
+  } else {
     closeSlotModal();
-  }catch(e){
-    console.error(e); alert('保存に失敗しました (localStorage)。');
   }
 }
 
@@ -574,415 +609,14 @@ function loadSlotByIndex(index){
   if(!raw){ alert('選択スロットにデータがありません'); return; }
   try{
     const obj = JSON.parse(raw);
-    const ok = confirm(`スロット ${index+1} を読み込みます。現在の一覧は上書きされます。よろしいですか？`);
-    if(ok){
-      applyListData(obj);
-      setSlotModalMessage(`スロット ${index+1} を読み込みました。`);
-      closeSlotModal();
-    }
-  }catch(e){
-    alert('データの復元に失敗しました');
-  }
-}
-
-/* -------------------- 共有（LZ圧縮 + 短縮） -------------------- */
-/* LZ compress/decompress (encodedURIComponent) */
-const LZ = (function(){
-  const f = String.fromCharCode;
-  function compressToEncodedURIComponent(input){
-    if(input == null) return "";
-    const res = _compress(input, 6, function(a){ return "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$".charAt(a);});
-    return res;
-  }
-  function decompressFromEncodedURIComponent(input){
-    if(input == null) return "";
-    if(input == "") return null;
-    return _decompress(input.length, 32, function(index){ return "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$".indexOf(input.charAt(index)); });
-  }
-  // _compress / _decompress omitted here for brevity — use full implementation below
-  /* full implementations inserted (same as prior complete code) */
-  function _compress(uncompressed, bitsPerChar, getCharFromInt) {
-    if (uncompressed == null) return "";
-    var i, value,
-      context_dictionary = {},
-      context_dictionaryToCreate = {},
-      context_c = "",
-      context_wc = "",
-      context_w = "",
-      context_enlargeIn = 2,
-      context_dictSize = 3,
-      context_numBits = 2,
-      context_data = [],
-      context_data_val = 0,
-      context_data_position = 0;
-
-    for (i = 0; i < uncompressed.length; i += 1) {
-      context_c = uncompressed.charAt(i);
-      if (!Object.prototype.hasOwnProperty.call(context_dictionary, context_c)) {
-        context_dictionary[context_c] = context_dictSize++;
-        context_dictionaryToCreate[context_c] = true;
-      }
-
-      context_wc = context_w + context_c;
-      if (Object.prototype.hasOwnProperty.call(context_dictionary, context_wc)) {
-        context_w = context_wc;
-      } else {
-        if (Object.prototype.hasOwnProperty.call(context_dictionaryToCreate, context_w)) {
-          value = context_w.charCodeAt(0);
-          for (var j = 0; j < context_numBits; j++) {
-            context_data_val = (context_data_val << 1);
-            if (context_data_position == bitsPerChar - 1) {
-              context_data_position = 0;
-              context_data.push(getCharFromInt(context_data_val));
-              context_data_val = 0;
-            } else {
-              context_data_position++;
-            }
-          }
-          var bits = 8;
-          while (bits--) {
-            context_data_val = (context_data_val << 1) | (value & 1);
-            if (context_data_position == bitsPerChar - 1) {
-              context_data_position = 0;
-              context_data.push(getCharFromInt(context_data_val));
-              context_data_val = 0;
-            } else {
-              context_data_position++;
-            }
-            value = value >> 1;
-          }
-          context_enlargeIn--;
-          if (context_enlargeIn == 0) {
-            context_enlargeIn = Math.pow(2, context_numBits);
-            context_numBits++;
-          }
-          delete context_dictionaryToCreate[context_w];
-        } else {
-          value = context_dictionary[context_w];
-          for (var j = 0; j < context_numBits; j++) {
-            context_data_val = (context_data_val << 1) | (value & 1);
-            if (context_data_position == bitsPerChar - 1) {
-              context_data_position = 0;
-              context_data.push(getCharFromInt(context_data_val));
-              context_data_val = 0;
-            } else {
-              context_data_position++;
-            }
-            value = value >> 1;
-          }
-        }
-        context_enlargeIn--;
-        if (context_enlargeIn == 0) {
-          context_enlargeIn = Math.pow(2, context_numBits);
-          context_numBits++;
-        }
-        context_dictionary[context_wc] = context_dictSize++;
-        context_w = String(context_c);
-      }
-    }
-
-    if (context_w !== "") {
-      if (Object.prototype.hasOwnProperty.call(context_dictionaryToCreate, context_w)) {
-        value = context_w.charCodeAt(0);
-        for (var j = 0; j < context_numBits; j++) {
-          context_data_val = (context_data_val << 1);
-          if (context_data_position == bitsPerChar - 1) {
-            context_data_position = 0;
-            context_data.push(getCharFromInt(context_data_val));
-            context_data_val = 0;
-          } else {
-            context_data_position++;
-          }
-        }
-        var bits = 8;
-        while (bits--) {
-          context_data_val = (context_data_val << 1) | (value & 1);
-          if (context_data_position == bitsPerChar - 1) {
-            context_data_position = 0;
-            context_data.push(getCharFromInt(context_data_val));
-            context_data_val = 0;
-          } else {
-            context_data_position++;
-          }
-          value = value >> 1;
-        }
-        context_enlargeIn--;
-        if (context_enlargeIn == 0) {
-          context_enlargeIn = Math.pow(2, context_numBits);
-          context_numBits++;
-        }
-        delete context_dictionaryToCreate[context_w];
-      } else {
-        value = context_dictionary[context_w];
-        for (var j = 0; j < context_numBits; j++) {
-          context_data_val = (context_data_val << 1) | (value & 1);
-          if (context_data_position == bitsPerChar - 1) {
-            context_data_position = 0;
-            context_data.push(getCharFromInt(context_data_val));
-            context_data_val = 0;
-          } else {
-            context_data_position++;
-          }
-          value = value >> 1;
-        }
-      }
-      context_enlargeIn--;
-      if (context_enlargeIn == 0) {
-        context_enlargeIn = Math.pow(2, context_numBits);
-        context_numBits++;
-      }
-    }
-
-    value = 2;
-    for (var j = 0; j < context_numBits; j++) {
-      context_data_val = (context_data_val << 1) | (value & 1);
-      if (context_data_position == bitsPerChar - 1) {
-        context_data_position = 0;
-        context_data.push(getCharFromInt(context_data_val));
-        context_data_val = 0;
-      } else {
-        context_data_position++;
-      }
-      value = value >> 1;
-    }
-
-    while (true) {
-      context_data_val = (context_data_val << 1);
-      if (context_data_position == bitsPerChar - 1) {
-        context_data.push(getCharFromInt(context_data_val));
-        break;
-      } else context_data_position++;
-    }
-    return context_data.join('');
-  }
-
-  function _decompress(length, resetValue, getNextValue) {
-    var dictionary = [];
-    var enlargeIn = 4;
-    var dictSize = 4;
-    var numBits = 3;
-    var entry = "";
-    var result = [];
-    var i, w, bits, resb, maxpower, power, c;
-    var data = { val:getNextValue(0), position:resetValue, index:1 };
-
-    function readBits(n) {
-      var bits = 0;
-      var maxpower = Math.pow(2, n);
-      var power = 1;
-      while (power != maxpower) {
-        resb = data.val & data.position;
-        data.position >>= 1;
-        if (data.position == 0) {
-          data.val = getNextValue(data.index++);
-          data.position = resetValue;
-        }
-        bits |= (resb > 0 ? 1 : 0) * power;
-        power <<= 1;
-      }
-      return bits;
-    }
-
-    for (i = 0; i < 3; i += 1) dictionary[i] = i;
-
-    bits = 0;
-    maxpower = Math.pow(2,2);
-    power = 1;
-    while (power != maxpower) {
-      resb = data.val & data.position;
-      data.position >>= 1;
-      if (data.position == 0) {
-        data.val = getNextValue(data.index++);
-        data.position = resetValue;
-      }
-      bits |= (resb > 0 ? 1 : 0) * power;
-      power <<= 1;
-    }
-
-    var next = bits;
-    switch (next) {
-      case 0:
-        bits = 0;
-        maxpower = Math.pow(2,8);
-        power = 1;
-        while (power != maxpower) {
-          resb = data.val & data.position;
-          data.position >>= 1;
-          if (data.position == 0) {
-            data.val = getNextValue(data.index++);
-            data.position = resetValue;
-          }
-          bits |= (resb > 0 ? 1 : 0) * power;
-          power <<= 1;
-        }
-        c = f(bits);
-        break;
-      case 1:
-        bits = 0;
-        maxpower = Math.pow(2,16);
-        power = 1;
-        while (power != maxpower) {
-          resb = data.val & data.position;
-          data.position >>= 1;
-          if (data.position == 0) {
-            data.val = getNextValue(data.index++);
-            data.position = resetValue;
-          }
-          bits |= (resb > 0 ? 1 : 0) * power;
-          power <<= 1;
-        }
-        c = f(bits);
-        break;
-      case 2:
-        return "";
-    }
-    dictionary[3] = c;
-    w = c;
-    result.push(c);
-    while (true) {
-      if (data.index > length) return "";
-      bits = 0;
-      maxpower = Math.pow(2, numBits);
-      power = 1;
-      while (power != maxpower) {
-        resb = data.val & data.position;
-        data.position >>= 1;
-        if (data.position == 0) {
-          data.val = getNextValue(data.index++);
-          data.position = resetValue;
-        }
-        bits |= (resb > 0 ? 1 : 0) * power;
-        power <<= 1;
-      }
-      var cc = bits;
-      switch (cc) {
-        case 0:
-          bits = 0;
-          maxpower = Math.pow(2,8);
-          power = 1;
-          while (power != maxpower) {
-            resb = data.val & data.position;
-            data.position >>= 1;
-            if (data.position == 0) {
-              data.val = getNextValue(data.index++);
-              data.position = resetValue;
-            }
-            bits |= (resb > 0 ? 1 : 0) * power;
-            power <<= 1;
-          }
-          dictionary[dictSize++] = f(bits);
-          cc = dictSize - 1;
-          enlargeIn--;
-          break;
-        case 1:
-          bits = 0;
-          maxpower = Math.pow(2,16);
-          power = 1;
-          while (power != maxpower) {
-            resb = data.val & data.position;
-            data.position >>= 1;
-            if (data.position == 0) {
-              data.val = getNextValue(data.index++);
-              data.position = resetValue;
-            }
-            bits |= (resb > 0 ? 1 : 0) * power;
-            power <<= 1;
-          }
-          dictionary[dictSize++] = f(bits);
-          cc = dictSize - 1;
-          enlargeIn--;
-          break;
-        case 2:
-          return result.join('');
-      }
-      if (enlargeIn == 0) {
-        enlargeIn = Math.pow(2, numBits);
-        numBits++;
-      }
-      if (dictionary[cc]) entry = dictionary[cc];
-      else {
-        if (cc === dictSize) entry = w + w.charAt(0);
-        else return null;
-      }
-      result.push(entry);
-      dictionary[dictSize++] = w + entry.charAt(0);
-      enlargeIn--;
-      w = entry;
-      if (enlargeIn == 0) {
-        enlargeIn = Math.pow(2, numBits);
-        numBits++;
-      }
-    }
-  }
-
-  return { compressToEncodedURIComponent, decompressFromEncodedURIComponent };
-})();
-
-/* 短縮URL生成 (tinyurl API)。失敗時は長いURLを返す */
-async function generateShortUrl(longUrl){
-  try{
-    const res = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`);
-    if(!res.ok) throw new Error('tinyurl failed');
-    const text = await res.text();
-    if(text && text.startsWith('http')) return text;
-    return longUrl;
-  }catch(e){
-    console.warn('短縮URL生成に失敗:', e);
-    return longUrl;
-  }
-}
-
-/* 共有: 圧縮 + 短縮 + クリップボード */
-async function generateShareUrl(){
-  const payload = getCurrentTableDataForSave();
-  try{
-    const json = JSON.stringify(payload);
-    const compressed = LZ.compressToEncodedURIComponent(json);
-    const rawUrl = window.location.origin + window.location.pathname + '?data=' + compressed;
-    const short = await generateShortUrl(rawUrl);
-    try{
-      if(navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(short);
-      else {
-        const tmp = document.createElement('textarea');
-        tmp.value = short; document.body.appendChild(tmp); tmp.select();
-        document.execCommand('copy'); tmp.remove();
-      }
-    }catch(e){}
-    // show modal with short url
-    document.getElementById('shareUrlInput').value = short;
-    document.getElementById('shareMsg').style.display = 'block';
-    openModalManaged(document.getElementById('shareModal'));
-  }catch(e){
-    console.error(e); alert('共有リンク生成に失敗しました。');
-  }
-}
-
-/* 受け取った data パラメータがあれば展開して読み込む（共有リンクからの復元） */
-function processSharedParamIfAny(){
-  const params = new URLSearchParams(window.location.search);
-  if(!params.has('data')) return;
-  try{
-    const enc = params.get('data'); if(!enc) return;
-    const decoded = LZ.decompressFromEncodedURIComponent(enc);
-    if(!decoded) return;
-    const obj = JSON.parse(decoded);
     applyListData(obj);
-    alert('共有データを読み込みました。');
-    const newUrl = window.location.origin + window.location.pathname;
-    window.history.replaceState({}, document.title, newUrl);
-  }catch(e){ console.error('共有データの復元に失敗:', e); }
+  }catch(e){ alert('データの復元に失敗しました'); }
 }
 
-/* -------------------- モーダル制御（アクセシビリティ対応） -------------------- */
-/* モーダル開閉時に背景のフォーカス可能要素を一時的に tabbable できなくする（tabindex=-1を入れて復元） */
+/* -------------------- モーダル管理（フォーカスマネージ） -------------------- */
 let _disabledBackground = [];
 let _previouslyFocused = null;
-
-function getFocusableElements(root=document.body){
-  return Array.from(root.querySelectorAll('a[href], button:not([disabled]), textarea, input, select, [tabindex]'))
-    .filter(el => el.offsetParent !== null);
-}
-
+function getFocusableElements(root=document.body){ return Array.from(root.querySelectorAll('a[href], button:not([disabled]), textarea, input, select, [tabindex]')).filter(el => el.offsetParent !== null); }
 function disableBackgroundFocus(modal){
   _disabledBackground = [];
   const allFocusable = getFocusableElements(document.body);
@@ -993,41 +627,30 @@ function disableBackgroundFocus(modal){
     el.setAttribute('tabindex', '-1');
   }
 }
-
 function restoreBackgroundFocus(){
   for(const item of _disabledBackground){
-    if(item.prevTab === null) item.el.removeAttribute('tabindex');
-    else item.el.setAttribute('tabindex', item.prevTab);
+    if(item.prevTab === null) item.el.removeAttribute('tabindex'); else item.el.setAttribute('tabindex', item.prevTab);
   }
   _disabledBackground = [];
 }
-
 function openModalManaged(modal){
   if(!modal) return;
   _previouslyFocused = document.activeElement;
   modal.classList.remove('hidden');
-  // disable background focus
   disableBackgroundFocus(modal);
-  // focus first focusable inside modal
   const focusables = getFocusableElements(modal);
   if(focusables.length > 0) focusables[0].focus();
 }
-
 function closeModalManaged(modal){
   if(!modal) return;
   modal.classList.add('hidden');
   restoreBackgroundFocus();
   try{ if(_previouslyFocused && typeof _previouslyFocused.focus === 'function') _previouslyFocused.focus(); }catch(e){}
 }
-
-/* 背景クリックでモーダルを閉じる（モーダル要素直下のクリックで閉じる） */
 function attachModalBackgroundClickHandlers(){
   document.querySelectorAll('.modal').forEach(modal => {
     modal.addEventListener('click', (e) => {
-      if(e.target === modal){
-        // close modal
-        closeModalManaged(modal);
-      }
+      if(e.target === modal) closeModalManaged(modal);
     });
     const content = modal.querySelector('.modal-content');
     if(content) content.addEventListener('click', (e)=> e.stopPropagation());
@@ -1037,54 +660,39 @@ function attachModalBackgroundClickHandlers(){
 /* -------------------- 初期化 -------------------- */
 window.addEventListener('DOMContentLoaded', ()=> {
   // 行追加
-  document.getElementById('addRowButton')?.addEventListener('click', ()=> {
-    const tr = addRow(); tr.querySelector('.skill-input')?.focus();
+  document.getElementById('addRowButton')?.addEventListener('click', ()=> { const tr = addRow(); tr.querySelector('.skill-input')?.focus(); });
+  // 10行追加
+  document.getElementById('add10RowsBtn')?.addEventListener('click', ()=> { for(let i=0;i<10;i++) addRow(); });
+
+  // 全リセット
+  document.getElementById('resetAllBtn')?.addEventListener('click', ()=>{
+    if(!confirm('全ての行をリセットします。よろしいですか？')) return;
+    renderTableInitial();
   });
 
-  // メニュー
+  // メニュー操作
   const menuButton = document.getElementById('menuButton'); const menuList = document.getElementById('menuList');
   if(menuButton && menuList){
     menuButton.addEventListener('click', (e)=> { e.stopPropagation(); menuList.classList.toggle('hidden'); });
     document.addEventListener('click', (e)=> { if(!menuList.contains(e.target) && e.target !== menuButton) menuList.classList.add('hidden'); });
-
+    // 保存
     document.getElementById('save')?.addEventListener('click', (e)=> { e.stopPropagation(); menuList.classList.add('hidden'); openSlotModal('save'); });
+    // 読込
     document.getElementById('load')?.addEventListener('click', (e)=> { e.stopPropagation(); menuList.classList.add('hidden'); openSlotModal('load'); });
-    document.getElementById('share')?.addEventListener('click', (e)=> { e.stopPropagation(); menuList.classList.add('hidden'); generateShareUrl(); });
+    // CSV import/export (未実装)
+    document.getElementById('import')?.addEventListener('click', (e)=> { e.stopPropagation(); menuList.classList.add('hidden'); alert('CSVインポート: 未実装です'); });
+    document.getElementById('export')?.addEventListener('click', (e)=> { e.stopPropagation(); menuList.classList.add('hidden'); alert('CSVエクスポート: 未実装です'); });
   }
 
+  // slot modal buttons
   document.getElementById('slotModalClose')?.addEventListener('click', ()=> closeSlotModal());
   document.getElementById('slotModalCancel')?.addEventListener('click', ()=> closeSlotModal());
   document.getElementById('slotModalAction')?.addEventListener('click', ()=> slotModalAction());
   document.getElementById('slotGrid')?.addEventListener('click', (e)=>{
-    const card = e.target.closest('.slot-card');
-    if(!card) return;
-    const idx = parseInt(card.dataset.slot, 10);
-    if(currentSlotModalMode === 'load'){
-      const raw = localStorage.getItem(SLOT_KEY_PREFIX + idx);
-      if(!raw){ alert('選択スロットにデータがありません'); return; }
-      const ok = confirm(`スロット ${idx+1} を読み込みます。現在の一覧は上書きされます。よろしいですか？`);
-      if(ok) loadSlotByIndex(idx);
-    }
+    // handled per-card in openSlotModal
   });
 
-  document.getElementById('shareModalClose')?.addEventListener('click', ()=> closeModalManaged(document.getElementById('shareModal')));
-  document.getElementById('closeShareBtn')?.addEventListener('click', ()=> closeModalManaged(document.getElementById('shareModal')));
-  document.getElementById('copyShareBtn')?.addEventListener('click', async ()=>{
-    const input = document.getElementById('shareUrlInput');
-    try{
-      if(navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(input.value);
-      else { input.select(); document.execCommand('copy'); }
-      const msg = document.getElementById('shareMsg'); msg.style.display = 'block';
-      setTimeout(()=> msg.style.display = 'none', 1200);
-    }catch(e){ alert('コピーに失敗しました。手動でコピーしてください。'); }
-  });
-
-  document.getElementById('slotTitleInput')?.addEventListener('keydown', (e)=>{
-    if(e.key === 'Enter') slotModalAction();
-  });
-
-  attachModalBackgroundClickHandlers();
-
+  // 切れ者チェッック -> 全行再計算
   const kire = document.getElementById('kiremonoHeader');
   if(kire){
     kire.addEventListener('change', ()=>{
@@ -1099,18 +707,19 @@ window.addEventListener('DOMContentLoaded', ()=> {
     });
   }
 
-  /* Close slot modal when clicking outside modal content handled by attachModalBackgroundClickHandlers */
+  // modal 背景クリック
+  attachModalBackgroundClickHandlers();
 
-  // CSV 読み込み（これが最初の描画を走らせる）
-  loadCSV().then(()=> { processSharedParamIfAny(); });
+  // CSV 読み込み（最初の描画）
+  loadCSV();
 });
 
-/* -------------------- 安全ガード: storage event newValue エラー回避 -------------------- */
+/* -------------------- storage event ガード -------------------- */
 window.addEventListener("storage", (e) => {
+  // newValue 参照などで起こる例外を回避するため厳密チェック
   try{
     if(!e || typeof e.key === "undefined") return;
-    // only handle our keys if needed
-    // example: handle external changes if you want
+    // 他タブでの更新を反映させたい場合はここで処理追加
   }catch(err){
     console.warn("storage handler ignored error:", err);
   }

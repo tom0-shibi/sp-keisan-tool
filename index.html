@@ -14,6 +14,8 @@
       <div class="header-info">
         <span>合計SP: <span id="totalSP">0</span></span>
         <label><input type="checkbox" id="kiremonoHeader"> 切れ者</label>
+        <!-- 全リセットボタン（要件） -->
+        <button id="resetAllBtn" class="btn btn-sm btn-outline-danger" title="スキル一覧をリセット">全リセット</button>
       </div>
     </div>
     <div class="header-right">
@@ -21,7 +23,8 @@
       <ul id="menuList" class="hidden">
         <li id="save">保存</li>
         <li id="load">読込</li>
-        <li id="share">内容を共有</li>
+        <li id="import">CSVインポート</li>
+        <li id="export">CSVエクスポート</li>
       </ul>
     </div>
   </div>
@@ -44,15 +47,15 @@
       </tbody>
     </table>
 
-    <div class="mt-2">
+    <div class="mt-2 controls-row">
       <button id="addRowButton" class="btn btn-primary btn-sm">＋ 行を追加</button>
-      <button id="add10RowButton" class="btn btn-primary btn-sm">＋ 10行を追加</button>
+      <button id="add10RowsBtn" class="btn btn-primary btn-sm">＋ 10行を追加</button>
     </div>
   </div>
 
   <!-- スロット管理モーダル -->
-  <div id="slotModal" class="modal hidden">
-    <div class="modal-content" id="slotModalContent" role="dialog" aria-modal="true">
+  <div id="slotModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-content" id="slotModalContent">
       <div class="modal-header">
         <h3 id="slotModalTitle">スロット管理</h3>
         <button id="slotModalClose" class="btn-close" title="閉じる"></button>
@@ -74,27 +77,9 @@
       </div>
 
       <div class="modal-footer">
+        <!-- action は JS で表示/非表示制御 -->
         <button id="slotModalAction" class="btn btn-primary">保存</button>
         <button id="slotModalCancel" class="btn btn-secondary">閉じる</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 共有モーダル -->
-  <div id="shareModal" class="modal hidden">
-    <div class="modal-content small-modal" id="shareModalContent" role="dialog" aria-modal="true">
-      <div class="modal-header">
-        <h3>共有リンク</h3>
-        <button id="shareModalClose" class="btn-close" title="閉じる"></button>
-      </div>
-      <div class="modal-body">
-        <div id="shareText" class="mb-2">画面内容のリンクを生成してクリップボードにコピーしました（自動短縮を試行します）。</div>
-        <input id="shareUrlInput" class="form-control" type="text" readonly />
-        <div class="d-flex gap-2 mt-2">
-          <button id="copyShareBtn" class="btn btn-primary btn-sm">再コピー</button>
-          <button id="closeShareBtn" class="btn btn-secondary btn-sm">閉じる</button>
-        </div>
-        <div id="shareMsg" class="text-success mt-2" style="display:none;">コピーしました</div>
       </div>
     </div>
   </div>
