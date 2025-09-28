@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>SP計算ツール</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
 </head>
 <body>
@@ -46,6 +46,56 @@
 
     <div class="mt-2">
       <button id="addRowButton" class="btn btn-primary btn-sm">＋ 行を追加</button>
+      <button id="add10RowButton" class="btn btn-primary btn-sm">＋ 10行を追加</button>
+    </div>
+  </div>
+
+  <!-- スロット管理モーダル -->
+  <div id="slotModal" class="modal hidden">
+    <div class="modal-content" id="slotModalContent" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <h3 id="slotModalTitle">スロット管理</h3>
+        <button id="slotModalClose" class="btn-close" title="閉じる"></button>
+      </div>
+
+      <div class="modal-body">
+        <div id="slotInstructions" class="mb-2 text-muted">スロットを選択してください（1〜10）。保存はタイトル任意。</div>
+
+        <div id="slotGrid" class="slot-grid"></div>
+
+        <div id="slotEditor" class="slot-editor hidden">
+          <label>タイトル（任意）：
+            <input id="slotTitleInput" type="text" class="form-control form-control-sm" placeholder="無題でも可">
+          </label>
+          <div class="text-muted small mt-1">保存日時は自動で記録されます。</div>
+        </div>
+
+        <div id="slotModalMessage" class="slot-modal-message" aria-live="polite"></div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="slotModalAction" class="btn btn-primary">保存</button>
+        <button id="slotModalCancel" class="btn btn-secondary">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 共有モーダル -->
+  <div id="shareModal" class="modal hidden">
+    <div class="modal-content small-modal" id="shareModalContent" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <h3>共有リンク</h3>
+        <button id="shareModalClose" class="btn-close" title="閉じる"></button>
+      </div>
+      <div class="modal-body">
+        <div id="shareText" class="mb-2">画面内容のリンクを生成してクリップボードにコピーしました（自動短縮を試行します）。</div>
+        <input id="shareUrlInput" class="form-control" type="text" readonly />
+        <div class="d-flex gap-2 mt-2">
+          <button id="copyShareBtn" class="btn btn-primary btn-sm">再コピー</button>
+          <button id="closeShareBtn" class="btn btn-secondary btn-sm">閉じる</button>
+        </div>
+        <div id="shareMsg" class="text-success mt-2" style="display:none;">コピーしました</div>
+      </div>
     </div>
   </div>
 
